@@ -1,29 +1,19 @@
-# dependencies
-node_modules/
-
-# build output
-dist/
-build/
-.output/
-.vinxi/
-.nitro/
-
-# env / secrets
-.env
-.env.*
-!.env.example
-
-# os / editor
+node_modules
 .DS_Store
-.vscode/
-.idea/
+dist
+dist-ssr
+*.local
+.env
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
 
-# logs
-*.log
-npm-debug.log*
+# Local Netlify folder
+.netlify
 
-# test coverage
-coverage/
-
-# deploy
-.vercel/
+# Installer metadata (contains local Clerk key)
+.cta.json
