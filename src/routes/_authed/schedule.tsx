@@ -9,7 +9,7 @@ function SchedulePage() {
     <div className="space-y-2">
       <h1 className="text-xl font-semibold">Schedule</h1>
       <p className="text-sm text-muted-foreground">
-        Your weekly meal plan (Monday–Sunday, Lunch &amp; Dinner) lands here in
+        Your weekly Schedule (Monday–Sunday, Lunch &amp; Dinner) lands here in
         a later ticket.
       </p>
     </div>

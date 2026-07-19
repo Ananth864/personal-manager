@@ -10,7 +10,7 @@ function resolveDark(mode: ThemeMode): boolean {
   return mode === 'dark'
 }
 
-function apply(mode: ThemeMode) {
+function applyTheme(mode: ThemeMode) {
   const dark = resolveDark(mode)
   document.documentElement.classList.toggle('dark', dark)
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
@@ -24,14 +24,14 @@ export function ThemeToggle() {
     const initial: ThemeMode =
       stored === 'light' || stored === 'dark' ? stored : 'auto'
     setMode(initial)
-    apply(initial)
+    applyTheme(initial)
   }, [])
 
   const cycle = () => {
     const next: ThemeMode =
       mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
     setMode(next)
-    apply(next)
+    applyTheme(next)
     localStorage.setItem('theme', next)
   }
 
