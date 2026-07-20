@@ -15,7 +15,7 @@ function SignInPage() {
             Plan meals, track your kitchen, cook with intent.
           </p>
         </div>
-        <SignIn />
+        <SignIn routing="hash" />
       </div>
     </div>
   )
