@@ -11,7 +11,10 @@ interface IngredientRow {
   name: string
   unit: string
   created_at: string
-  cooking_inventory: InventoryJoinRow[]
+  // PostgREST returns this as a single object (to-one, because ingredient_id is
+  // cooking_inventory's primary key), but supabase-js infers it as an array.
+  // Accept both and normalize in toItem.
+  cooking_inventory: InventoryJoinRow | InventoryJoinRow[] | null | undefined
 }
 
 interface InventoryJoinRow {
@@ -37,8 +40,11 @@ function toIngredient(row: IngredientColumns): Ingredient {
 }
 
 function toItem(row: IngredientRow): InventoryItem {
-  // The 1:1 join comes back as a has-many array; take the first (and only) row.
-  const inv = row.cooking_inventory.at(0) ?? null
+  // PostgREST returns the to-one inventory join as a single object (or null),
+  // because cooking_inventory.ingredient_id is that table's primary key.
+  // supabase-js types it as an array, so normalize either shape here.
+  const join = row.cooking_inventory
+  const inv = Array.isArray(join) ? (join[0] ?? null) : (join ?? null)
   return {
     ingredient: toIngredient(row),
     state: inv?.state ?? 'unavailable',
