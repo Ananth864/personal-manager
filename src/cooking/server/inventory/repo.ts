@@ -1,4 +1,4 @@
-import type { Ingredient, InventoryItem, InventoryState } from './types'
+import type { Ingredient, InventoryItem, InventoryState, Unit } from './types'
 
 /**
  * The persistence seam for the Inventory service. The service layer depends on
@@ -12,7 +12,7 @@ export interface InventoryRepo {
   findIngredientByName: (name: string) => Promise<Ingredient | null>
   createIngredient: (input: {
     name: string
-    unit: string
+    unit: Unit
     state: InventoryState
     quantity: number | null
   }) => Promise<InventoryItem>
@@ -45,7 +45,7 @@ export class InMemoryInventoryRepo implements InventoryRepo {
 
   async createIngredient(input: {
     name: string
-    unit: string
+    unit: Unit
     state: InventoryState
     quantity: number | null
   }): Promise<InventoryItem> {

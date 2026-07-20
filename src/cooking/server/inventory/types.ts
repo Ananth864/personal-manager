@@ -8,11 +8,15 @@
  */
 export type InventoryState = 'endless' | 'tracked' | 'unavailable'
 
+/** The allowed canonical units for an Ingredient. */
+export const UNITS = ['piece', 'g', 'kg', 'ml', 'L'] as const
+export type Unit = (typeof UNITS)[number]
+
 export interface Ingredient {
   id: string
   name: string
   /** Canonical unit — every quantity for this ingredient is expressed in it. */
-  unit: string
+  unit: Unit
   createdAt: Date
 }
 

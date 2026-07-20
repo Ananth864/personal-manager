@@ -1,6 +1,6 @@
 import { createCookingClient } from '#/cooking/lib/supabase'
 import type { InventoryRepo } from './repo'
-import type { Ingredient, InventoryItem, InventoryState } from './types'
+import type { Ingredient, InventoryItem, InventoryState, Unit } from './types'
 
 /** Columns for the ingredient catalog row, without the inventory join. */
 const INGREDIENT_COLUMNS = 'id, name, unit, created_at'
@@ -31,7 +31,7 @@ function toIngredient(row: IngredientColumns): Ingredient {
   return {
     id: row.id,
     name: row.name,
-    unit: row.unit,
+    unit: row.unit as Unit,
     createdAt: new Date(row.created_at),
   }
 }
@@ -97,7 +97,7 @@ export class SupabaseInventoryRepo implements InventoryRepo {
 
   async createIngredient(input: {
     name: string
-    unit: string
+    unit: Unit
     state: InventoryState
     quantity: number | null
   }): Promise<InventoryItem> {

@@ -23,6 +23,14 @@ create table if not exists cooking_ingredients (
 create unique index if not exists cooking_ingredients_user_name_uniq
   on cooking_ingredients (user_id, lower(name));
 
+-- Canonical unit is one of the five allowed values (matches the app's UNITS).
+-- Idempotent so this applies whether or not an earlier version of the table
+-- had the constraint.
+alter table cooking_ingredients drop constraint if exists cooking_ingredients_unit_chk;
+alter table cooking_ingredients
+  add constraint cooking_ingredients_unit_chk
+  check (unit in ('piece', 'g', 'kg', 'ml', 'L'));
+
 -- An Inventory entry is the per-ingredient state in the user's kitchen.
 -- Exactly one row per ingredient. The check constraint encodes the
 -- Endless / Tracked / Unavailable state machine from CONTEXT.md.

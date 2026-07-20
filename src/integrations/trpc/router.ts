@@ -8,9 +8,11 @@ import {
   restockIngredient,
   setIngredientState,
 } from '#/cooking/server/inventory/service'
+import { UNITS } from '#/cooking/server/inventory/types'
 import type { Context } from './init'
 
 const stateSchema = z.enum(['endless', 'tracked', 'unavailable'])
+const unitSchema = z.enum(UNITS)
 
 function repoFor(ctx: Context) {
   return new SupabaseInventoryRepo(ctx.token!)
@@ -26,7 +28,7 @@ export const trpcRouter = createTRPCRouter({
       .input(
         z.object({
           name: z.string().min(1),
-          unit: z.string().min(1),
+          unit: unitSchema,
           state: stateSchema,
           quantity: z.number().positive().nullable().optional(),
         }),

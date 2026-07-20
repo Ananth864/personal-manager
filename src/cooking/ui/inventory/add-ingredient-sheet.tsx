@@ -20,7 +20,8 @@ import {
   SheetTitle,
 } from '#/components/ui/sheet'
 import { useTRPC } from '#/integrations/trpc/react'
-import type { InventoryState } from '#/cooking/server/inventory/types'
+import { UNITS } from '#/cooking/server/inventory/types'
+import type { InventoryState, Unit } from '#/cooking/server/inventory/types'
 
 const STATES: { value: InventoryState; label: string; hint: string }[] = [
   { value: 'tracked', label: 'Tracked', hint: 'A quantity you keep count of.' },
@@ -39,7 +40,7 @@ export function AddIngredientSheet({
   const queryClient = useQueryClient()
 
   const [name, setName] = useState('')
-  const [unit, setUnit] = useState('')
+  const [unit, setUnit] = useState<Unit>('g')
   const [state, setState] = useState<InventoryState>('tracked')
   const [quantity, setQuantity] = useState('')
 
@@ -57,7 +58,7 @@ export function AddIngredientSheet({
 
   function reset() {
     setName('')
-    setUnit('')
+    setUnit('g')
     setState('tracked')
     setQuantity('')
   }
@@ -65,7 +66,7 @@ export function AddIngredientSheet({
   function submit() {
     addMutation.mutate({
       name: name.trim(),
-      unit: unit.trim(),
+      unit,
       state,
       quantity: state === 'tracked' ? Number(quantity) : null,
     })
@@ -100,13 +101,22 @@ export function AddIngredientSheet({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ing-unit">Canonical unit</Label>
-            <Input
-              id="ing-unit"
-              placeholder="piece, g, ml, cup…"
+            <Label>Canonical unit</Label>
+            <Select
               value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-            />
+              onValueChange={(v: string) => setUnit(v as Unit)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UNITS.map((u) => (
+                  <SelectItem key={u} value={u}>
+                    {u}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               Every quantity for this ingredient will be in this unit.
             </p>
@@ -156,7 +166,7 @@ export function AddIngredientSheet({
           <SheetFooter className="mt-auto gap-2 sm:flex-col">
             <Button
               type="submit"
-              disabled={addMutation.isPending || !name.trim() || !unit.trim()}
+              disabled={addMutation.isPending || !name.trim()}
             >
               {addMutation.isPending ? 'Adding…' : 'Add ingredient'}
             </Button>

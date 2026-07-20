@@ -1,10 +1,10 @@
 import { applyRestock, applySetState } from './rules'
 import type { InventoryRepo } from './repo'
-import type { InventoryItem, InventoryState } from './types'
+import type { InventoryItem, InventoryState, Unit } from './types'
 
 export interface AddIngredientInput {
   name: string
-  unit: string
+  unit: Unit
   state: InventoryState
   /** Required when state is 'tracked'; ignored otherwise. */
   quantity?: number | null
@@ -33,10 +33,8 @@ export async function addIngredient(
   if (!name) {
     throw new Error('Ingredient name is required.')
   }
-  const unit = input.unit.trim()
-  if (!unit) {
-    throw new Error('Ingredient unit is required.')
-  }
+  // Unit is already one of the allowed enum values — no trimming needed.
+  const unit = input.unit
 
   const existing = await repo.findIngredientByName(name)
   if (existing) {
