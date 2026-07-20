@@ -42,6 +42,8 @@ function AuthedLayout() {
 
 function LinkBrand() {
   return (
-    <span className="text-sm font-semibold tracking-tight">Personal Manager</span>
+    <span className="font-display text-base font-semibold tracking-tight">
+      Personal Manager
+    </span>
   )
 }
