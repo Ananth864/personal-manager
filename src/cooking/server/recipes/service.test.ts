@@ -92,6 +92,17 @@ describe('recipe service', () => {
       ).rejects.toThrow(/twice/i)
     })
 
+    it('rejects a recipe with no ingredients', async () => {
+      await expect(
+        createRecipe(repo, {
+          name: 'X',
+          servings: 1,
+          notes: null,
+          ingredients: [],
+        }),
+      ).rejects.toThrow(/at least one ingredient/i)
+    })
+
     it('update replaces the ingredient set', async () => {
       const r = await createRecipe(repo, {
         name: 'X',

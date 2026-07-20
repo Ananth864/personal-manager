@@ -132,7 +132,11 @@ export class SupabaseRecipeRepo implements RecipeRepo {
     }
 
     // Re-fetch so the returned detail carries real ingredient names/units.
-    return (await this.get(row.id))!
+    const created = await this.get(row.id)
+    if (!created) {
+      throw new Error('Created recipe could not be read back.')
+    }
+    return created
   }
 
   async update(
@@ -160,7 +164,11 @@ export class SupabaseRecipeRepo implements RecipeRepo {
     }
 
     // Re-fetch so the returned detail carries real ingredient names/units.
-    return (await this.get(id))!
+    const updated = await this.get(id)
+    if (!updated) {
+      throw new Error('Updated recipe could not be read back.')
+    }
+    return updated
   }
 
   async softDelete(id: string): Promise<void> {

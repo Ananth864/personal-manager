@@ -1,20 +1,18 @@
 import { computeAvailability } from './availability'
 import type { InventoryItem } from '../inventory/types'
-import type { RecipeRepo } from './repo'
+import type { CreateRecipeInput, RecipeRepo } from './repo'
 import type { RecipeDetail, RecipeWithAvailability } from './types'
 
 export { computeAvailability } from './availability'
 export type { Availability } from './types'
 
-function normalize(input: {
-  name: string
-  servings: number
-  notes: string | null
-  ingredients: { ingredientId: string; quantity: number }[]
-}) {
+function normalize(input: CreateRecipeInput): CreateRecipeInput {
   const name = input.name.trim()
   if (!name) {
     throw new Error('Recipe name is required.')
+  }
+  if (input.ingredients.length === 0) {
+    throw new Error('A recipe needs at least one ingredient.')
   }
   if (!Number.isInteger(input.servings) || input.servings < 1) {
     throw new Error('Servings must be a whole number of 1 or more.')
@@ -42,12 +40,7 @@ function normalize(input: {
 
 export async function createRecipe(
   repo: RecipeRepo,
-  input: {
-    name: string
-    servings: number
-    notes: string | null
-    ingredients: { ingredientId: string; quantity: number }[]
-  },
+  input: CreateRecipeInput,
 ): Promise<RecipeDetail> {
   return repo.create(normalize(input))
 }
@@ -55,12 +48,7 @@ export async function createRecipe(
 export async function updateRecipe(
   repo: RecipeRepo,
   id: string,
-  input: {
-    name: string
-    servings: number
-    notes: string | null
-    ingredients: { ingredientId: string; quantity: number }[]
-  },
+  input: CreateRecipeInput,
 ): Promise<RecipeDetail> {
   return repo.update(id, normalize(input))
 }

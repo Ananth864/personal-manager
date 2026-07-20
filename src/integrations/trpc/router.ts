@@ -10,6 +10,7 @@ import {
 } from '#/cooking/server/inventory/service'
 import { UNITS } from '#/cooking/server/inventory/types'
 import { SupabaseRecipeRepo } from '#/cooking/server/recipes/supabase-repo'
+import { computeAvailability } from '#/cooking/server/recipes/availability'
 import {
   createRecipe,
   deleteRecipe,
@@ -105,7 +106,10 @@ export const trpcRouter = createTRPCRouter({
           recipeRepoFor(ctx).get(input.id),
         ])
         if (!recipe) return null
-        return withAvailability([recipe], inventory)[0]
+        return {
+          ...recipe,
+          availability: computeAvailability(recipe.ingredients, inventory),
+        }
       }),
 
     create: protectedProcedure

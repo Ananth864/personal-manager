@@ -4,6 +4,7 @@ import { Plus, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { useTRPC } from '#/integrations/trpc/react'
+import { EmptyState, ErrorState, LoadingState } from '../shared-states'
 import { RecipeBadge } from './recipe-badge'
 import { RecipeDetailSheet } from './recipe-detail-sheet'
 import { RecipeFormSheet } from './recipe-form-sheet'
@@ -21,10 +22,8 @@ export function RecipesPage() {
   const filtered = useMemo(() => {
     const recipes = listQuery.data ?? []
     const q = search.trim().toLowerCase()
-    const list = q
-      ? recipes.filter((r) => r.name.toLowerCase().includes(q))
-      : recipes
-    return [...list].sort((a, b) => a.name.localeCompare(b.name))
+    // The repo already returns recipes ordered by name; filtering preserves it.
+    return q ? recipes.filter((r) => r.name.toLowerCase().includes(q)) : recipes
   }, [listQuery.data, search])
 
   if (listQuery.isLoading) {
@@ -33,6 +32,7 @@ export function RecipesPage() {
   if (listQuery.error) {
     return (
       <ErrorState
+        title="Couldn't load your recipes"
         message={listQuery.error.message}
         onRetry={() => listQuery.refetch()}
       />
@@ -71,7 +71,12 @@ export function RecipesPage() {
       </div>
 
       {total === 0 ? (
-        <EmptyState onAdd={() => setAdding(true)} />
+        <EmptyState
+          title="No recipes yet"
+          body="Add a recipe with its ingredients and quantities. Each one gets a cookability badge against your inventory."
+          actionLabel="Add a recipe"
+          onAction={() => setAdding(true)}
+        />
       ) : filtered.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           No recipes match “{search}”.
@@ -117,52 +122,6 @@ export function RecipesPage() {
         onOpenChange={(o) => !o && setViewing(null)}
         onEdit={(r) => setEditing(r)}
       />
-    </div>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="space-y-3">
-      <div className="h-7 w-32 animate-pulse rounded bg-muted" />
-      <div className="h-10 animate-pulse rounded bg-muted" />
-      <div className="h-16 animate-pulse rounded-lg bg-muted" />
-      <div className="h-16 animate-pulse rounded-lg bg-muted" />
-    </div>
-  )
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="font-display text-lg">No recipes yet</p>
-      <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-        Add a recipe with its ingredients and quantities. Each one gets a
-        cookability badge against your inventory.
-      </p>
-      <Button onClick={onAdd} className="mt-4">
-        <Plus className="h-4 w-4" /> Add a recipe
-      </Button>
-    </div>
-  )
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="font-display text-lg">Couldn't load your recipes</p>
-      <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-        {message}
-      </p>
-      <Button onClick={onRetry} variant="outline" className="mt-4">
-        Try again
-      </Button>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { AddIngredientSheet } from './add-ingredient-sheet'
 import { EditIngredientSheet } from './edit-ingredient-sheet'
 import { StateMarker } from './state-marker'
 import { formatQuantity } from './format'
+import { EmptyState, ErrorState, LoadingState } from '../shared-states'
 import type { InventoryItem, InventoryState } from '#/cooking/server/inventory/types'
 
 const SECTION_ORDER: InventoryState[] = ['tracked', 'endless', 'unavailable']
@@ -46,6 +47,7 @@ export function InventoryPage() {
   if (listQuery.error) {
     return (
       <ErrorState
+        title="Couldn't load your inventory"
         message={listQuery.error.message}
         onRetry={() => listQuery.refetch()}
       />
@@ -83,7 +85,12 @@ export function InventoryPage() {
       </div>
 
       {totalIngredients === 0 ? (
-        <EmptyState onAdd={() => setAdding(true)} />
+        <EmptyState
+          title="Your inventory is empty"
+          body="Add your first ingredient to start tracking what's in your kitchen — by count, as a staple, or marked unavailable."
+          actionLabel="Add an ingredient"
+          onAction={() => setAdding(true)}
+        />
       ) : sections.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           No ingredients match “{search}”.
@@ -140,51 +147,5 @@ function Quantity({ item }: { item: InventoryItem }) {
     <span className="text-xs tabular-nums text-muted-foreground">
       {formatQuantity(item.quantity)} {item.ingredient.unit}
     </span>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="space-y-3">
-      <div className="h-7 w-32 animate-pulse rounded bg-muted" />
-      <div className="h-10 animate-pulse rounded bg-muted" />
-      <div className="h-16 animate-pulse rounded-lg bg-muted" />
-      <div className="h-16 animate-pulse rounded-lg bg-muted" />
-    </div>
-  )
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="font-display text-lg">Your inventory is empty</p>
-      <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-        Add your first ingredient to start tracking what's in your kitchen — by
-        count, as a staple, or marked unavailable.
-      </p>
-      <Button onClick={onAdd} className="mt-4">
-        <Plus className="h-4 w-4" /> Add an ingredient
-      </Button>
-    </div>
-  )
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="font-display text-lg">Couldn't load your inventory</p>
-      <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-        {message}
-      </p>
-      <Button onClick={onRetry} variant="outline" className="mt-4">
-        Try again
-      </Button>
-    </div>
   )
 }
