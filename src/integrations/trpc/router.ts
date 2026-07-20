@@ -9,6 +9,13 @@ import {
   setIngredientState,
 } from '#/cooking/server/inventory/service'
 import { UNITS } from '#/cooking/server/inventory/types'
+import { SupabaseRecipeRepo } from '#/cooking/server/recipes/supabase-repo'
+import {
+  createRecipe,
+  deleteRecipe,
+  updateRecipe,
+  withAvailability,
+} from '#/cooking/server/recipes/service'
 import type { Context } from './init'
 
 const stateSchema = z.enum(['endless', 'tracked', 'unavailable'])
@@ -17,6 +24,26 @@ const unitSchema = z.enum(UNITS)
 function repoFor(ctx: Context) {
   return new SupabaseInventoryRepo(ctx.token!)
 }
+
+function recipeRepoFor(ctx: Context) {
+  return new SupabaseRecipeRepo(ctx.token!)
+}
+
+/** Fetch the user's inventory snapshot, for availability badges. */
+function inventoryFor(ctx: Context) {
+  return new SupabaseInventoryRepo(ctx.token!).list()
+}
+
+const recipeLineSchema = z.object({
+  ingredientId: z.string().min(1),
+  quantity: z.number().positive(),
+})
+const recipeInputSchema = z.object({
+  name: z.string().min(1),
+  servings: z.number().int().min(1),
+  notes: z.string().nullable(),
+  ingredients: z.array(recipeLineSchema),
+})
 
 export const trpcRouter = createTRPCRouter({
   inventory: createTRPCRouter({
@@ -59,6 +86,41 @@ export const trpcRouter = createTRPCRouter({
           quantity: input.quantity,
         }),
       ),
+  }),
+
+  recipes: createTRPCRouter({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const [inventory, recipes] = await Promise.all([
+        inventoryFor(ctx),
+        recipeRepoFor(ctx).list(),
+      ])
+      return withAvailability(recipes, inventory)
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const [inventory, recipe] = await Promise.all([
+          inventoryFor(ctx),
+          recipeRepoFor(ctx).get(input.id),
+        ])
+        if (!recipe) return null
+        return withAvailability([recipe], inventory)[0]
+      }),
+
+    create: protectedProcedure
+      .input(recipeInputSchema)
+      .mutation(({ ctx, input }) => createRecipe(recipeRepoFor(ctx), input)),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.string() }).extend(recipeInputSchema.shape))
+      .mutation(({ ctx, input }) =>
+        updateRecipe(recipeRepoFor(ctx), input.id, input),
+      ),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(({ ctx, input }) => deleteRecipe(recipeRepoFor(ctx), input.id)),
   }),
 })
 export type TRPCRouter = typeof trpcRouter
