@@ -118,7 +118,7 @@ export function SlotSheet({
           <SheetTitle className="font-display text-lg capitalize">
             {mode === 'menu' && `${label.weekday} ${slot.meal}`}
             {mode === 'recipe' && 'Choose a recipe'}
-            {mode === 'adhoc' && 'Ad-hoc meal'}
+            {mode === 'adhoc' && 'Ad-hoc recipe'}
           </SheetTitle>
           <SheetDescription className="capitalize">
             {mode === 'menu' && (
@@ -200,7 +200,7 @@ function summary(slot: MealSlot): string {
   const a = slot.assignment
   if (!a) return 'Not planned'
   if (a.type === 'recipe') return a.recipeName ?? 'Recipe'
-  if (a.type === 'adhoc') return a.adhocName?.trim() ? a.adhocName : 'Ad-hoc meal'
+  if (a.type === 'adhoc') return a.adhocName?.trim() ? a.adhocName : 'Ad-hoc recipe'
   if (a.type === 'nocook') return 'No cook'
   return 'Food Bank'
 }
@@ -224,7 +224,7 @@ function Menu({
   return (
     <div className="flex flex-1 flex-col gap-2">
       <MenuButton label="Assign a recipe" hint="From your catalog" onClick={onRecipe} disabled={pending} />
-      <MenuButton label="Add an ad-hoc meal" hint="A one-off ingredient list" onClick={onAdhoc} disabled={pending} />
+      <MenuButton label="Add an ad-hoc recipe" hint="A one-off ingredient list" onClick={onAdhoc} disabled={pending} />
       <MenuButton
         label="Mark as No Cook"
         hint="Eating out, skipping, fasting"
@@ -238,7 +238,7 @@ function Menu({
       />
       {assigned && (
         <MenuButton
-          label="Clear this slot"
+          label="Clear this meal"
           hint="Leave it unplanned"
           onClick={onClear}
           disabled={pending}
@@ -405,7 +405,7 @@ function AdhocForm({
 
       <SheetClose asChild>
         <Button type="button" onClick={onSave} disabled={!canSubmit || pending}>
-          Save ad-hoc meal
+          Save ad-hoc recipe
         </Button>
       </SheetClose>
     </div>

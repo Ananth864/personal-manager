@@ -1,3 +1,4 @@
+import { addDays } from '../../schedule/date-utils'
 import type {
   MealPosition,
   SlotRow,
@@ -20,15 +21,15 @@ export interface ScheduleRepo {
 /** In-memory implementation used by the service-layer tests. */
 export class InMemoryScheduleRepo implements ScheduleRepo {
   private readonly slots = new Map<string, SlotRow>()
+  private nextId = 1
 
   private key(slotDate: string, meal: MealPosition): string {
     return `${slotDate}_${meal}`
   }
 
   async listSlots(weekStart: string): Promise<SlotRow[]> {
-    const start = weekStart
     return [...this.slots.values()]
-      .filter((s) => s.slotDate >= start && s.slotDate < addDaysISO(start, 7))
+      .filter((s) => s.slotDate >= weekStart && s.slotDate < addDays(weekStart, 7))
       .sort((a, b) =>
         a.slotDate === b.slotDate
           ? a.meal.localeCompare(b.meal)
@@ -37,8 +38,9 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
   }
 
   async upsertSlot(input: UpsertSlotInput): Promise<void> {
+    const existing = this.slots.get(this.key(input.slotDate, input.meal))
     const row: SlotRow = {
-      id: this.slots.get(this.key(input.slotDate, input.meal))?.id ?? cryptoId(),
+      id: existing?.id ?? `slot_${this.nextId++}`,
       slotDate: input.slotDate,
       meal: input.meal,
       assignmentType: input.assignmentType,
@@ -52,16 +54,4 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
   async clearSlot(slotDate: string, meal: MealPosition): Promise<void> {
     this.slots.delete(this.key(slotDate, meal))
   }
-}
-
-// Minimal helpers kept local so the in-memory repo has no cross-module import.
-function addDaysISO(iso: string, n: number): string {
-  const [y, m, d] = iso.split('-').map(Number)
-  const date = new Date(Date.UTC(y, m - 1, d, 12))
-  date.setUTCDate(date.getUTCDate() + n)
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
-}
-
-function cryptoId(): string {
-  return `slot_${Math.random().toString(36).slice(2, 10)}`
 }

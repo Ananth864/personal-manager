@@ -149,14 +149,14 @@ describe('schedule service', () => {
       expect(after).toEqual(snapshot)
     })
 
-    it('rejects an ad-hoc meal with no ingredients (without touching inventory)', async () => {
+    it('rejects an ad-hoc recipe with no ingredients (without touching inventory)', async () => {
       await expect(
         assignAdhoc(repo, addDays(weekStart, 1), 'lunch', { ingredients: [] }),
       ).rejects.toThrow(/at least one ingredient/i)
       expect(await inventory.list()).toEqual(snapshot)
     })
 
-    it('rejects a duplicate ingredient in an ad-hoc meal', async () => {
+    it('rejects a duplicate ingredient in an ad-hoc recipe', async () => {
       await expect(
         assignAdhoc(repo, addDays(weekStart, 1), 'lunch', {
           ingredients: [

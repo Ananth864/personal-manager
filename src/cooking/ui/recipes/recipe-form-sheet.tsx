@@ -15,12 +15,8 @@ import {
 } from '#/components/ui/sheet'
 import { useTRPC } from '#/integrations/trpc/react'
 import { IngredientPickerRow } from '../ingredient-picker-row'
+import type { PickerRow } from '../ingredient-picker-row'
 import type { RecipeWithAvailability } from '#/cooking/server/recipes/types'
-
-interface Row {
-  ingredientId: string
-  quantity: string
-}
 
 /**
  * Combined add/edit form. When `recipe` is null the sheet creates a new recipe;
@@ -44,7 +40,7 @@ export function RecipeFormSheet({
   const [name, setName] = useState('')
   const [servings, setServings] = useState('2')
   const [notes, setNotes] = useState('')
-  const [rows, setRows] = useState<Row[]>([])
+  const [rows, setRows] = useState<PickerRow[]>([])
 
   const editing = recipe ?? null
 

@@ -26,7 +26,7 @@ function validateSlotKey(slotDate: string): void {
 
 function normalizeAdhocIngredients(lines: AdhocIngredient[]): AdhocIngredient[] {
   if (lines.length === 0) {
-    throw new Error('An ad-hoc meal needs at least one ingredient.')
+    throw new Error('An ad-hoc recipe needs at least one ingredient.')
   }
   const seen = new Set<string>()
   for (const line of lines) {
@@ -37,7 +37,7 @@ function normalizeAdhocIngredients(lines: AdhocIngredient[]): AdhocIngredient[] 
       throw new Error('Each ingredient quantity must be positive.')
     }
     if (seen.has(line.ingredientId)) {
-      throw new Error('An ad-hoc meal cannot list the same ingredient twice.')
+      throw new Error('An ad-hoc recipe cannot list the same ingredient twice.')
     }
     seen.add(line.ingredientId)
   }

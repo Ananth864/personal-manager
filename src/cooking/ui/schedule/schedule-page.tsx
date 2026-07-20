@@ -24,11 +24,15 @@ export function SchedulePage() {
   const weekQuery = useQuery(trpc.schedule.getWeek.queryOptions({ weekStart }))
 
   const todayRef = useRef<HTMLElement | null>(null)
+  const scrolledWeekRef = useRef<string | null>(null)
   useEffect(() => {
-    if (weekQuery.data && !weekQuery.data.readonly) {
-      todayRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }
-  }, [weekQuery.data])
+    // Auto-scroll to today once per week — not on every data refetch, so
+    // assigning a slot doesn't yank the view back after the user scrolled.
+    if (!weekQuery.data || weekQuery.data.readonly) return
+    if (scrolledWeekRef.current === weekStart) return
+    todayRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    scrolledWeekRef.current = weekStart
+  }, [weekStart, weekQuery.data])
 
   const nextWeekStart = addDays(currentWeekStart(), 7)
   const canGoForward = weekStart < nextWeekStart
@@ -55,7 +59,7 @@ export function SchedulePage() {
             Schedule
           </h1>
           <p className="text-sm text-muted-foreground">
-            {week?.readonly ? 'Browsing a past week — read only.' : 'Plan your week, one slot at a time.'}
+            {week?.readonly ? 'Browsing a past week — read only.' : 'Plan your week, one meal at a time.'}
           </p>
         </div>
       </header>
@@ -194,7 +198,7 @@ function SlotContent({ assignment }: { assignment: SlotAssignment | null }) {
   if (assignment.type === 'adhoc') {
     return (
       <span className="block truncate text-sm font-medium">
-        {assignment.adhocName?.trim() ? assignment.adhocName : 'Ad-hoc meal'}
+        {assignment.adhocName?.trim() ? assignment.adhocName : 'Ad-hoc recipe'}
       </span>
     )
   }
