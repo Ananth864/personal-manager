@@ -44,19 +44,19 @@ alter table cooking_inventory   enable row level security;
 drop policy if exists "owner manages own cooking_ingredients" on cooking_ingredients;
 create policy "owner manages own cooking_ingredients" on cooking_ingredients
   for all
-  using (user_id = auth.uid()::text)
-  with check (user_id = auth.uid()::text);
+  using ((auth.jwt() ->> 'sub') = user_id)
+  with check ((auth.jwt() ->> 'sub') = user_id);
 
 drop policy if exists "owner manages own cooking_inventory" on cooking_inventory;
 create policy "owner manages own cooking_inventory" on cooking_inventory
   for all
-  using (user_id = auth.uid()::text)
-  with check (user_id = auth.uid()::text);
+  using ((auth.jwt() ->> 'sub') = user_id)
+  with check ((auth.jwt() ->> 'sub') = user_id);
 
--- Stamp user_id from the authenticated Clerk session (auth.uid() resolves to
--- the Clerk user id once the Supabase JWT is configured to trust Clerk — see
--- supabase/README.md). The app never sends user_id; the DB owns it, so a row
--- can never be written to the wrong user.
+-- Stamp user_id from the authenticated Clerk session. We read the JWT `sub`
+-- directly (auth.jwt() ->> 'sub') rather than auth.uid(), because Clerk user
+-- ids ("user_…") are not UUIDs and auth.uid() casts sub to uuid. The app never
+-- sends user_id; the DB owns it, so a row can never be written to the wrong user.
 create or replace function cooking_set_user_id()
 returns trigger
 language plpgsql
@@ -64,7 +64,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  new.user_id := auth.uid()::text;
+  new.user_id := auth.jwt() ->> 'sub';
   return new;
 end;
 $$;
