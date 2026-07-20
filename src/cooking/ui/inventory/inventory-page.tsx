@@ -14,7 +14,7 @@ const SECTION_ORDER: InventoryState[] = ['tracked', 'endless', 'unavailable']
 const SECTION_LABEL: Record<InventoryState, string> = {
   tracked: 'Tracked',
   endless: 'Endless',
-  unavailable: 'Out',
+  unavailable: 'Unavailable',
 }
 
 export function InventoryPage() {
@@ -40,7 +40,7 @@ export function InventoryPage() {
   }, [listQuery.data, search])
 
   if (listQuery.isLoading) {
-    return <LoadingPantry />
+    return <LoadingState />
   }
 
   if (listQuery.error) {
@@ -52,7 +52,7 @@ export function InventoryPage() {
     )
   }
 
-  const totalItems = listQuery.data?.length ?? 0
+  const totalIngredients = listQuery.data?.length ?? 0
 
   return (
     <div className="space-y-6">
@@ -62,9 +62,9 @@ export function InventoryPage() {
             Inventory
           </h1>
           <p className="text-sm text-muted-foreground">
-            {totalItems === 0
+            {totalIngredients === 0
               ? 'Your kitchen, tracked your way.'
-              : `${totalItems} ingredient${totalItems === 1 ? '' : 's'} in your kitchen.`}
+              : `${totalIngredients} ingredient${totalIngredients === 1 ? '' : 's'} in your kitchen.`}
           </p>
         </div>
         <Button size="sm" onClick={() => setAdding(true)} className="shrink-0">
@@ -82,7 +82,7 @@ export function InventoryPage() {
         />
       </div>
 
-      {totalItems === 0 ? (
+      {totalIngredients === 0 ? (
         <EmptyState onAdd={() => setAdding(true)} />
       ) : sections.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
@@ -134,7 +134,7 @@ function Quantity({ item }: { item: InventoryItem }) {
     return <span className="text-xs text-muted-foreground">staple</span>
   }
   if (item.state === 'unavailable') {
-    return <span className="text-xs text-muted-foreground">out</span>
+    return null
   }
   return (
     <span className="text-xs tabular-nums text-muted-foreground">
@@ -143,7 +143,7 @@ function Quantity({ item }: { item: InventoryItem }) {
   )
 }
 
-function LoadingPantry() {
+function LoadingState() {
   return (
     <div className="space-y-3">
       <div className="h-7 w-32 animate-pulse rounded bg-muted" />
@@ -157,10 +157,10 @@ function LoadingPantry() {
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-      <p className="font-display text-lg">Your pantry's empty</p>
+      <p className="font-display text-lg">Your inventory is empty</p>
       <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
         Add your first ingredient to start tracking what's in your kitchen — by
-        count, as a staple, or marked out.
+        count, as a staple, or marked unavailable.
       </p>
       <Button onClick={onAdd} className="mt-4">
         <Plus className="h-4 w-4" /> Add an ingredient

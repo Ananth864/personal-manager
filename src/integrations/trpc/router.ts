@@ -6,7 +6,6 @@ import {
   addIngredient,
   listInventory,
   restockIngredient,
-  searchIngredients,
   setIngredientState,
 } from '#/cooking/server/inventory/service'
 import type { Context } from './init'
@@ -22,12 +21,6 @@ export const trpcRouter = createTRPCRouter({
     list: protectedProcedure.query(({ ctx }) =>
       listInventory(repoFor(ctx)),
     ),
-
-    search: protectedProcedure
-      .input(z.object({ query: z.string() }))
-      .query(({ ctx, input }) =>
-        searchIngredients(repoFor(ctx), input.query),
-      ),
 
     add: protectedProcedure
       .input(

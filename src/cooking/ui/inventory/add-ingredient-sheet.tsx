@@ -25,7 +25,7 @@ import type { InventoryState } from '#/cooking/server/inventory/types'
 const STATES: { value: InventoryState; label: string; hint: string }[] = [
   { value: 'tracked', label: 'Tracked', hint: 'A quantity you keep count of.' },
   { value: 'endless', label: 'Endless', hint: 'A staple you never track.' },
-  { value: 'unavailable', label: 'Out', hint: 'None left — needs restocking.' },
+  { value: 'unavailable', label: 'Unavailable', hint: 'None left — add some to restock.' },
 ]
 
 export function AddIngredientSheet({

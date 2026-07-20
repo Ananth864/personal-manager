@@ -90,7 +90,7 @@ export function EditIngredientSheet({
               <SheetDescription className="flex items-center gap-2">
                 <StateMarker state={item.state} />
                 <span>
-                  {describe(item)} · unit is {item.ingredient.unit}
+                  {stateLabel(item)} · unit is {item.ingredient.unit}
                 </span>
               </SheetDescription>
             </SheetHeader>
@@ -155,12 +155,12 @@ export function EditIngredientSheet({
                     onClick={() => changeState('unavailable')}
                     disabled={pending || item.state === 'unavailable'}
                   >
-                    Mark out
+                    Mark unavailable
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Endless treats it as a staple you never count. Out means none
-                  left.
+                  Endless treats it as a staple you never count. Unavailable
+                  means none left.
                 </p>
               </div>
 
@@ -185,9 +185,9 @@ export function EditIngredientSheet({
   )
 }
 
-function describe(item: InventoryItem): string {
+function stateLabel(item: InventoryItem): string {
   if (item.state === 'endless') return 'Endless staple'
-  if (item.state === 'unavailable') return 'Out of stock'
+  if (item.state === 'unavailable') return 'Unavailable'
   const qty = formatQuantity(item.quantity)
   return `${qty} ${item.ingredient.unit} on hand`
 }

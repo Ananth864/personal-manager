@@ -192,6 +192,26 @@ describe('inventory service', () => {
 
       const after = await restockIngredient(repo, ingredient.id, 100)
       expect(after.ingredient.unit).toBe('g')
+
+      const marked = await setIngredientState(repo, ingredient.id, 'unavailable')
+      expect(marked.ingredient.unit).toBe('g')
+    })
+  })
+
+  describe('cross-state transitions', () => {
+    it('transitions Endless <-> Unavailable', async () => {
+      const { ingredient } = await addIngredient(repo, {
+        name: 'Salt',
+        unit: 'g',
+        state: 'endless',
+      })
+      const unavailable = await setIngredientState(repo, ingredient.id, 'unavailable')
+      expect(unavailable.state).toBe('unavailable')
+      expect(unavailable.quantity).toBe(0)
+
+      const endlessAgain = await setIngredientState(repo, ingredient.id, 'endless')
+      expect(endlessAgain.state).toBe('endless')
+      expect(endlessAgain.quantity).toBeNull()
     })
   })
 })

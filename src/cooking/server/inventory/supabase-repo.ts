@@ -2,6 +2,10 @@ import { createCookingClient } from '#/cooking/lib/supabase'
 import type { InventoryRepo } from './repo'
 import type { Ingredient, InventoryItem, InventoryState } from './types'
 
+/** Columns for the ingredient catalog row, without the inventory join. */
+const INGREDIENT_COLUMNS = 'id, name, unit, created_at'
+
+/** Ingredient row + its 1:1 inventory join. */
 interface IngredientRow {
   id: string
   name: string
@@ -16,16 +20,27 @@ interface InventoryJoinRow {
   updated_at: string
 }
 
+interface IngredientColumns {
+  id: string
+  name: string
+  unit: string
+  created_at: string
+}
+
+function toIngredient(row: IngredientColumns): Ingredient {
+  return {
+    id: row.id,
+    name: row.name,
+    unit: row.unit,
+    createdAt: new Date(row.created_at),
+  }
+}
+
 function toItem(row: IngredientRow): InventoryItem {
   // The 1:1 join comes back as a has-many array; take the first (and only) row.
   const inv = row.cooking_inventory.at(0) ?? null
   return {
-    ingredient: {
-      id: row.id,
-      name: row.name,
-      unit: row.unit,
-      createdAt: new Date(row.created_at),
-    },
+    ingredient: toIngredient(row),
     state: inv?.state ?? 'unavailable',
     quantity: inv?.quantity ?? null,
     updatedAt: inv ? new Date(inv.updated_at) : new Date(),
@@ -35,7 +50,8 @@ function toItem(row: IngredientRow): InventoryItem {
 /**
  * Production InventoryRepo backed by Supabase. RLS (user_id = auth.uid())
  * guarantees every row belongs to the authenticated user, so this code never
- * filters by user itself.
+ * filters by user itself. Inserts omit user_id — the cooking_set_user_id
+ * trigger derives it from the Clerk session (see 0002_inventory.sql).
  */
 export class SupabaseInventoryRepo implements InventoryRepo {
   private readonly client
@@ -47,9 +63,7 @@ export class SupabaseInventoryRepo implements InventoryRepo {
   async list(): Promise<InventoryItem[]> {
     const { data, error } = await this.client
       .from('cooking_ingredients')
-      .select(
-        'id, name, unit, created_at, cooking_inventory(state, quantity, updated_at)',
-      )
+      .select(`${INGREDIENT_COLUMNS}, cooking_inventory(state, quantity, updated_at)`)
       .order('name')
     if (error) {
       throw new Error(`Failed to list inventory: ${error.message}`)
@@ -60,9 +74,7 @@ export class SupabaseInventoryRepo implements InventoryRepo {
   async get(ingredientId: string): Promise<InventoryItem | null> {
     const { data, error } = await this.client
       .from('cooking_ingredients')
-      .select(
-        'id, name, unit, created_at, cooking_inventory(state, quantity, updated_at)',
-      )
+      .select(`${INGREDIENT_COLUMNS}, cooking_inventory(state, quantity, updated_at)`)
       .eq('id', ingredientId)
       .maybeSingle()
     if (error) {
@@ -74,19 +86,13 @@ export class SupabaseInventoryRepo implements InventoryRepo {
   async findIngredientByName(name: string): Promise<Ingredient | null> {
     const { data, error } = await this.client
       .from('cooking_ingredients')
-      .select('id, name, unit, created_at')
+      .select(INGREDIENT_COLUMNS)
       .ilike('name', name)
       .maybeSingle()
     if (error) {
       throw new Error(`Failed to look up ingredient: ${error.message}`)
     }
-    if (!data) return null
-    return {
-      id: data.id,
-      name: data.name,
-      unit: data.unit,
-      createdAt: new Date(data.created_at),
-    }
+    return data ? toIngredient(data) : null
   }
 
   async createIngredient(input: {
@@ -95,28 +101,20 @@ export class SupabaseInventoryRepo implements InventoryRepo {
     state: InventoryState
     quantity: number | null
   }): Promise<InventoryItem> {
-    const ingredientRow = {
-      name: input.name,
-      unit: input.unit,
-      created_by: 'user',
-    }
-
     const { data: ing, error: ingErr } = await this.client
       .from('cooking_ingredients')
-      .insert(ingredientRow)
-      .select('id, name, unit, created_at')
+      .insert({ name: input.name, unit: input.unit, created_by: 'user' })
+      .select(INGREDIENT_COLUMNS)
       .single()
     if (ingErr) {
       throw new Error(`Failed to create ingredient: ${ingErr.message}`)
     }
 
-    const { error: invErr } = await this.client
-      .from('cooking_inventory')
-      .insert({
-        ingredient_id: ing.id,
-        state: input.state,
-        quantity: input.quantity,
-      })
+    const { error: invErr } = await this.client.from('cooking_inventory').insert({
+      ingredient_id: ing.id,
+      state: input.state,
+      quantity: input.quantity,
+    })
     if (invErr) {
       // Roll back the orphan ingredient so a failed insert doesn't leave a
       // dangling catalog row that would show as Unavailable.
@@ -125,12 +123,7 @@ export class SupabaseInventoryRepo implements InventoryRepo {
     }
 
     return {
-      ingredient: {
-        id: ing.id,
-        name: ing.name,
-        unit: ing.unit,
-        createdAt: new Date(ing.created_at),
-      },
+      ingredient: toIngredient(ing),
       state: input.state,
       quantity: input.quantity,
       updatedAt: new Date(),

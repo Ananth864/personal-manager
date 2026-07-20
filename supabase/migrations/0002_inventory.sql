@@ -48,3 +48,29 @@ create policy "owner manages own cooking_inventory" on cooking_inventory
   for all
   using (user_id = auth.uid()::text)
   with check (user_id = auth.uid()::text);
+
+-- Stamp user_id from the authenticated Clerk session (auth.uid() resolves to
+-- the Clerk user id once the Supabase JWT is configured to trust Clerk — see
+-- supabase/README.md). The app never sends user_id; the DB owns it, so a row
+-- can never be written to the wrong user.
+create or replace function cooking_set_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.user_id := auth.uid()::text;
+  return new;
+end;
+$$;
+
+drop trigger if exists cooking_ingredients_set_user_id on cooking_ingredients;
+create trigger cooking_ingredients_set_user_id
+  before insert on cooking_ingredients
+  for each row execute function cooking_set_user_id();
+
+drop trigger if exists cooking_inventory_set_user_id on cooking_inventory;
+create trigger cooking_inventory_set_user_id
+  before insert on cooking_inventory
+  for each row execute function cooking_set_user_id();

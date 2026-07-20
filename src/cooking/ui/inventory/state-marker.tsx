@@ -8,9 +8,9 @@ import { cn } from '#/lib/utils'
  * Endless / Tracked / Unavailable state at a glance.
  *   Tracked     → CircleDot   (a quantified amount you have)
  *   Endless     → Circle      (a staple, unquantified)
- *   Unavailable → CircleSlash (out)
+ *   Unavailable → CircleSlash (none left)
  */
-const CONFIG: Record<InventoryState, { icon: LucideIcon; tone: string }> = {
+const MARKERS_BY_STATE: Record<InventoryState, { icon: LucideIcon; tone: string }> = {
   tracked: { icon: CircleDot, tone: 'text-primary' },
   endless: { icon: Circle, tone: 'text-primary' },
   unavailable: { icon: CircleSlash, tone: 'text-muted-foreground' },
@@ -23,6 +23,6 @@ export function StateMarker({
   state: InventoryState
   className?: string
 }) {
-  const { icon: Icon, tone } = CONFIG[state]
+  const { icon: Icon, tone } = MARKERS_BY_STATE[state]
   return <Icon className={cn('h-4 w-4 shrink-0', tone, className)} aria-hidden />
 }
