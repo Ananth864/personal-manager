@@ -1,4 +1,5 @@
 import { computeAvailability } from './availability'
+import type { AvailabilityLine } from './availability'
 import type { InventoryItem } from '../inventory/types'
 import type { CreateRecipeInput, RecipeRepo } from './repo'
 import type { RecipeDetail, RecipeWithAvailability } from './types'
@@ -76,8 +77,11 @@ export function withAvailability(
   recipes: RecipeDetail[],
   inventory: InventoryItem[],
 ): RecipeWithAvailability[] {
-  return recipes.map((r) => ({
-    ...r,
-    availability: computeAvailability(r.ingredients, inventory),
-  }))
+  return recipes.map((r) => {
+    const lines: AvailabilityLine[] = r.ingredients.map((i) => ({
+      ingredientId: i.ingredient.id,
+      quantity: i.quantity,
+    }))
+    return { ...r, availability: computeAvailability(lines, inventory) }
+  })
 }

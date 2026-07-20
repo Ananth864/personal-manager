@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, X } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import {
   Sheet,
   SheetClose,
@@ -21,6 +14,7 @@ import {
   SheetTitle,
 } from '#/components/ui/sheet'
 import { useTRPC } from '#/integrations/trpc/react'
+import { IngredientPickerRow } from '../ingredient-picker-row'
 import type { RecipeWithAvailability } from '#/cooking/server/recipes/types'
 
 interface Row {
@@ -195,9 +189,9 @@ export function RecipeFormSheet({
             ) : (
               <ul className="space-y-2">
                 {rows.map((row, index) => (
-                  <IngredientRow
+                  <IngredientPickerRow
                     key={index}
-                    row={row}
+                    value={row}
                     options={ingredients
                       .filter(
                         (i) =>
@@ -249,61 +243,5 @@ export function RecipeFormSheet({
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  )
-}
-
-function IngredientRow({
-  row,
-  options,
-  unit,
-  onChange,
-  onRemove,
-}: {
-  row: Row
-  options: { id: string; name: string; unit: string }[]
-  unit: string | null
-  onChange: (next: Row) => void
-  onRemove: () => void
-}) {
-  return (
-    <li className="space-y-2 rounded-lg border border-border bg-card p-2">
-      <Select
-        value={row.ingredientId}
-        onValueChange={(v: string) => onChange({ ...row, ingredientId: v })}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Pick an ingredient" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o.id} value={o.id}>
-              {o.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <div className="flex items-center gap-2">
-        <Input
-          inputMode="decimal"
-          placeholder="amount"
-          value={row.quantity}
-          onChange={(e) => onChange({ ...row, quantity: e.target.value })}
-          className="flex-1"
-        />
-        <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">
-          {unit ?? 'unit'}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={onRemove}
-          aria-label="Remove ingredient"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    </li>
   )
 }

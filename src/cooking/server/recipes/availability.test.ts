@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { computeAvailability } from './availability'
+import type { AvailabilityLine } from './availability'
 import type { InventoryItem } from '../inventory/types'
-import type { RecipeIngredient } from './types'
 
 let idSeq = 0
 function inv(
@@ -21,16 +21,8 @@ function inv(
   }
 }
 
-function line(item: { id: string }, quantity: number): RecipeIngredient {
-  return {
-    ingredient: {
-      id: item.id,
-      name: 'whatever',
-      unit: 'g',
-      createdAt: new Date(),
-    },
-    quantity,
-  }
+function line(item: { id: string }, quantity: number): AvailabilityLine {
+  return { ingredientId: item.id, quantity }
 }
 
 describe('computeAvailability', () => {
