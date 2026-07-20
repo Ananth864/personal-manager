@@ -1,39 +1,44 @@
 # Supabase setup
 
-This app uses Supabase (Postgres) as its data store. **Row-Level Security scopes every row to the authenticated Clerk user id** — the data-protection boundary (per the TanStack Start auth architecture: route guards are UX, RLS is security). Clerk and Supabase are integrated via a JWT template: Clerk issues a JWT that Supabase verifies, exposing the Clerk user id as `auth.uid()` in RLS policies.
+This app uses Supabase (Postgres) with **Row-Level Security scoping every row to the Clerk user id**. Auth uses Clerk's **native Supabase integration** (Clerk as a third-party auth provider in Supabase) — *not* the deprecated "Supabase JWT template" that shared a JWT secret. The standard Clerk session token works because the integration adds the `authenticated` role.
 
 ## One-time setup
 
-1. **Create a Supabase project** at https://supabase.com. Copy the Project URL and the `anon` public key into `.env.local`:
-
+1. **Create a Supabase project** at https://supabase.com. In `.env.local`, set:
    ```
    VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyYOUR-ANON-KEY
+   VITE_SUPABASE_ANON_KEY=ey...   # the publishable (anon) key
    ```
 
-2. **Create a Clerk JWT template** named `supabase` (Clerk dashboard → JWT Templates → New template → Supabase). This exposes the Clerk user id as `sub` in the token Supabase receives.
+2. **Activate Clerk's Supabase integration** (gives you a Clerk domain):
+   - Clerk dashboard → [Supabase integration setup](https://dashboard.clerk.com/setup/supabase) → choose options → **Activate**.
+   - Copy the **Clerk domain** it reveals (e.g. `https://your-instance.clerk.accounts.dev`).
 
-3. **Make Supabase trust Clerk tokens.** In Supabase, set the JWT secret / JWKS to Clerk's (Supabase dashboard → Authentication → JWT Settings), so Supabase verifies the Bearer token the app sends and resolves `auth.uid()` to the Clerk user id. (See Clerk's Supabase guide for the current exact field.)
+3. **Add Clerk as a third-party auth provider in Supabase**:
+   - Supabase dashboard → **Authentication → Sign In / Providers** → **Add provider** → **Clerk**.
+   - Paste the **Clerk domain** from step 2. Save.
+
+   That's it — no secrets shared. Supabase verifies Clerk tokens via Clerk's JWKS.
 
 ## How queries are scoped
 
-`src/cooking/lib/supabase.ts` exports `createCookingClient(token)` — a per-request client bound to the user's Clerk session token. Server functions (T02+) call `auth().getToken()` to get that token and pass it here. Every Supabase query then runs as that user, gated by RLS.
+`src/cooking/lib/supabase.ts` exports `createCookingClient(token)` — a per-request client that sends the Clerk session token as a Bearer token. Server functions (the tRPC context in `src/integrations/trpc/init.ts`) call `session.getToken()` and pass it here. Supabase resolves the token and exposes its claims via `auth.jwt()`.
 
 ## RLS pattern (used by every `cooking_*` table)
 
-Clerk user ids (`user_…`) are not UUIDs, so we read the JWT `sub` directly
-(`auth.jwt() ->> 'sub'`) rather than `auth.uid()` (which casts `sub` to uuid):
+Clerk user ids (`user_…`) are not UUIDs, so we read the JWT `sub` directly (`auth.jwt() ->> 'sub'`) rather than `auth.uid()` (which casts `sub` to uuid):
 
 ```sql
 create policy "owner can manage own rows"
   on cooking_<table>
   for all
+  to authenticated
   using ((auth.jwt() ->> 'sub') = user_id)
   with check ((auth.jwt() ->> 'sub') = user_id);
 ```
 
-Every `cooking_*` table also has a `before insert` trigger that stamps
-`user_id := auth.jwt() ->> 'sub'`, so the app never sends `user_id` — the DB
-derives it from the Clerk session.
+Every `cooking_*` table also has a column default `user_id text not null default auth.jwt() ->> 'sub'`, so the app never sends `user_id` — the DB derives it from the request token.
 
-The first feature tables (`cooking_ingredients`, `cooking_inventory`) land in ticket #3 (Ingredient Inventory). This skeleton ticket only wires the client factory; the first live RLS-gated query rides on the Inventory ticket.
+## Migrations
+
+Run the files under `supabase/migrations/` in Supabase's SQL editor in order. Each is idempotent (`if not exists` / `drop ... if exists`), so re-runs are safe.
