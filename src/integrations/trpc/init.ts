@@ -12,9 +12,20 @@ export interface Context {
   token: string | null
 }
 
+/**
+ * Name of the Clerk JWT template that signs tokens Supabase will accept.
+ * Must match the template you create in Clerk (see supabase/README.md).
+ */
+const SUPABASE_JWT_TEMPLATE = 'supabase'
+
 export async function createContext(): Promise<Context> {
   const session = await auth()
-  const token = session.userId ? await session.getToken() : null
+  // Request the Supabase-template token specifically — the default session
+  // token is signed by Clerk and would be rejected by Supabase. The template
+  // signs with Supabase's JWT secret so auth.uid() resolves to the Clerk user id.
+  const token = session.userId
+    ? await session.getToken({ template: SUPABASE_JWT_TEMPLATE })
+    : null
   return { userId: session.userId, token }
 }
 

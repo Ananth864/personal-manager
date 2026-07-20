@@ -11,9 +11,13 @@ create table if not exists cooking_ingredients (
   name       text not null,
   unit       text not null,
   created_by text not null default 'user',  -- 'user' | 'agent'
-  created_at timestamptz not null default now(),
-  unique (user_id, lower(name))
+  created_at timestamptz not null default now()
 );
+
+-- Expression unique constraints can't be inline in CREATE TABLE; use an index.
+-- Names are unique per user, case-insensitively.
+create unique index if not exists cooking_ingredients_user_name_uniq
+  on cooking_ingredients (user_id, lower(name));
 
 -- An Inventory entry is the per-ingredient state in the user's kitchen.
 -- Exactly one row per ingredient. The check constraint encodes the
