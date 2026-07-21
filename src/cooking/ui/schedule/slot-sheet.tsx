@@ -67,6 +67,9 @@ export function SlotSheet({
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+    // assignRecipe/assignAdhoc/markNoCook/clearSlot all change the planned-cook
+    // set that feeds the Food Bank's projected availability, so refresh it too.
+    queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
   }
 
   const assignRecipeMut = useMutation(
@@ -97,8 +100,6 @@ export function SlotSheet({
     trpc.schedule.clearSlot.mutationOptions({
       onSuccess: () => {
         invalidate()
-        // Clearing a Food Bank slot releases its reservation.
-        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
         onOpenChange(false)
       },
     }),
