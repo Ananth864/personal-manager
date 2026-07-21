@@ -25,6 +25,17 @@ export class SupabaseFoodBankRepo implements FoodBankRepo {
     }
   }
 
+  async removePortions(recipeId: string | null, portions: number): Promise<void> {
+    if (portions <= 0) return
+    const { error } = await this.client.rpc('cooking_remove_portions', {
+      p_recipe: recipeId,
+      p_portions: portions,
+    })
+    if (error) {
+      throw new Error(`Failed to discard Food Bank portions: ${error.message}`)
+    }
+  }
+
   async listProduced(): Promise<{ recipeId: string | null; portions: number }[]> {
     const { data, error } = await this.client
       .from('cooking_food_bank')

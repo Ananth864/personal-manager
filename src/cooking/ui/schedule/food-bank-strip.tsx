@@ -1,11 +1,18 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { MinusIcon, PlusIcon } from 'lucide-react'
 import { useTRPC } from '#/integrations/trpc/react'
+import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { Button } from '#/components/ui/button'
 
 /**
  * The compact "available portions" strip at the top of the Schedule. Shows
  * prepared portions grouped by Recipe (catalog) plus the commingled Ad-hoc
  * pool. Only entries with portions available are shown; hidden entirely when
  * the Food Bank is empty.
+ *
+ * Each pill opens a discard control so portions can be reduced directly (thrown
+ * away / eaten without a slot) without planning a meal around them.
  */
 export function FoodBankStrip() {
   const trpc = useTRPC()
@@ -24,15 +31,98 @@ export function FoodBankStrip() {
       </span>
       <div className="flex flex-wrap gap-1.5">
         {entries.map((e) => (
-          <span
+          <DiscardPill
             key={e.recipeId ?? '__adhoc__'}
-            className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-          >
-            {e.recipeName}
-            <span className="tabular-nums">×{e.available}</span>
-          </span>
+            recipeId={e.recipeId}
+            name={e.recipeName}
+            available={e.available}
+          />
         ))}
       </div>
     </section>
+  )
+}
+
+function DiscardPill({
+  recipeId,
+  name,
+  available,
+}: {
+  recipeId: string | null
+  name: string
+  available: number
+}) {
+  const trpc = useTRPC()
+  const queryClient = useQueryClient()
+  const [count, setCount] = useState(1)
+  const [open, setOpen] = useState(false)
+
+  const discardMut = useMutation(
+    trpc.foodBank.discard.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+        setOpen(false)
+        setCount(1)
+      },
+    }),
+  )
+
+  return (
+    <Popover open={open} onOpenChange={(o: boolean) => { setOpen(o); if (o) setCount(1) }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+        >
+          {name}
+          <span className="tabular-nums">×{available}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-3">
+        <div className="mb-1 text-sm font-semibold">{name}</div>
+        <div className="mb-3 text-xs text-muted-foreground">
+          {available} available{available === 1 ? '' : 's'} in the Food Bank
+        </div>
+        <div className="mb-3 flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setCount((c) => Math.max(1, c - 1))}
+            disabled={count <= 1}
+            aria-label="Fewer portions"
+          >
+            <MinusIcon className="h-3.5 w-3.5" />
+          </Button>
+          <span className="w-8 text-center text-sm font-semibold tabular-nums">{count}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setCount((c) => Math.min(available, c + 1))}
+            disabled={count >= available}
+            aria-label="More portions"
+          >
+            <PlusIcon className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="w-full"
+          onClick={() => discardMut.mutate({ recipeId, count })}
+          disabled={discardMut.isPending}
+        >
+          Discard {count}
+        </Button>
+        {discardMut.isError ? (
+          <p className="mt-2 text-xs text-destructive">
+            {discardMut.error.message}
+          </p>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }

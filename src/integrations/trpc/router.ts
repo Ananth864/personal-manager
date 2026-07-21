@@ -28,6 +28,7 @@ import {
 } from '#/cooking/server/schedule/service'
 import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
 import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/server/food-bank/availability'
+import { discardPortions } from '#/cooking/server/food-bank/service'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
@@ -308,6 +309,16 @@ export const trpcRouter = createTRPCRouter({
         id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
       )
     }),
+    discard: protectedProcedure
+      .input(z.object({ recipeId: z.string().nullable(), count: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        await discardPortions(
+          foodBankRepoFor(ctx),
+          scheduleRepoFor(ctx),
+          input.recipeId,
+          input.count,
+        )
+      }),
   }),
 })
 export type TRPCRouter = typeof trpcRouter
