@@ -56,6 +56,9 @@ function slot(
 describe('schedule service', () => {
   let repo: ScheduleRepo
   const weekStart = currentWeekStart()
+  // A week entirely in the future, so every slot is "today-or-future" and
+  // participates in the forward shortfall projection.
+  const futureWeekStart = addDays(currentWeekStart(), 7)
 
   beforeEach(() => {
     repo = new InMemoryScheduleRepo()
@@ -92,9 +95,9 @@ describe('schedule service', () => {
         },
         // salt not in inventory -> missing
       ]
-      const slots = [slot(addDays(weekStart, 1), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_1' })]
+      const slots = [slot(addDays(futureWeekStart, 1), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_1' })]
 
-      const week = buildWeek(weekStart, slots, [rcp], inventory)
+      const week = buildWeek(futureWeekStart, slots, [rcp], inventory)
       expect(week.days[1].lunch.assignment?.type).toBe('recipe')
       expect(week.days[1].lunch.assignment?.recipeName).toBe('Omelette')
       expect(week.days[1].lunch.shortfall).toBe(1)
@@ -102,13 +105,13 @@ describe('schedule service', () => {
 
     it('flags an ad-hoc slot against inventory', () => {
       const slots = [
-        slot(addDays(weekStart, 2), 'dinner', {
+        slot(addDays(futureWeekStart, 2), 'dinner', {
           assignmentType: 'adhoc',
           adhocName: 'Toast',
           adhocIngredients: [{ ingredientId: 'ing_bread', quantity: 2 }],
         }),
       ]
-      const week = buildWeek(weekStart, slots, [], [])
+      const week = buildWeek(futureWeekStart, slots, [], [])
       expect(week.days[2].dinner.assignment?.type).toBe('adhoc')
       expect(week.days[2].dinner.shortfall).toBe(1)
     })
@@ -133,12 +136,34 @@ describe('schedule service', () => {
         },
       ]
       const slots = [
-        slot(addDays(weekStart, 0), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
-        slot(addDays(weekStart, 2), 'dinner', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
+        slot(addDays(futureWeekStart, 0), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
+        slot(addDays(futureWeekStart, 2), 'dinner', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
       ]
-      const week = buildWeek(weekStart, slots, [rcp], inventory)
+      const week = buildWeek(futureWeekStart, slots, [rcp], inventory)
       expect(week.days[0].lunch.shortfall).toBe(0) // 6 >= 4, sim drops to 2
       expect(week.days[2].dinner.shortfall).toBe(1) // only 2 left, needs 4
+    })
+
+    it('does not project cooked slots — they already consumed real inventory', () => {
+      const rcp = recipe('rcp_egg', 'Eggs', [{ id: 'ing_egg', qty: 4 }])
+      const inventory: InventoryItem[] = [
+        {
+          ingredient: { id: 'ing_egg', name: 'Egg', unit: 'piece', createdAt: new Date() },
+          state: 'tracked',
+          quantity: 4,
+          updatedAt: new Date(),
+        },
+      ]
+      const slots = [
+        slot(addDays(futureWeekStart, 1), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_egg', cooked: true }),
+        slot(addDays(futureWeekStart, 3), 'dinner', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
+      ]
+      const week = buildWeek(futureWeekStart, slots, [rcp], inventory)
+      // Cooked slot is not projected…
+      expect(week.days[1].lunch.shortfall).toBeNull()
+      // …so it didn't consume the simulated balance — the future dinner still
+      // sees all 4 eggs (Cook already took its 4 from real inventory).
+      expect(week.days[3].dinner.shortfall).toBe(0)
     })
 
     it('never mutates the Inventory it was given (planning ≠ cooking)', () => {

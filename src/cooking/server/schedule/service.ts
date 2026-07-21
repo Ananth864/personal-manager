@@ -1,7 +1,7 @@
 import type { InventoryItem } from '../inventory/types'
 import type { RecipeDetail } from '../recipes/types'
 import type { ScheduleRepo } from './repo'
-import { isPastWeek, weekDays } from '../../schedule/date-utils'
+import { isPastWeek, todayISO, weekDays } from '../../schedule/date-utils'
 import type {
   AdhocIngredient,
   DayPlan,
@@ -94,21 +94,28 @@ function requiredLines(
 
 /**
  * Project this slot's shortfall against a *running* simulated balance of
- * Tracked ingredients. The week is walked chronologically, so an earlier
- * planned cook consumes from `sim` and a later meal that looked cookable in
- * isolation can flag short once that Tracked ingredient is used up. Endless
- * ingredients are always available and never consumed; Unavailable and
- * not-in-inventory count as short. `sim` is mutated in place.
+ * Tracked ingredients. Only today-or-future, uncooked slots participate: the
+ * flag is a forward-looking planning aid ("if I cook my remaining planned
+ * meals with what I currently have, where do I come up short?"). Past slots
+ * are water under the bridge, and cooked slots already consumed real
+ * Inventory (simulating them would double-count). `sim` is seeded from the
+ * current real Inventory, so past Cooks are already reflected in it.
  *
- * Planning is not Cooking (ADR-0001): this mutates only the throwaway `sim`
- * map, never the Inventory passed in.
+ * Walked chronologically, so an earlier planned cook consumes from `sim` and a
+ * later meal that looked cookable in isolation can flag short once that Tracked
+ * ingredient is used up. Endless ingredients are always available and never
+ * consumed; Unavailable and not-in-inventory count as short. `sim` is mutated
+ * in place. Planning is not Cooking (ADR-0001): this mutates only the
+ * throwaway `sim` map, never the Inventory passed in.
  */
 function projectShortfall(
   row: SlotRow,
   recipeById: Map<string, RecipeDetail>,
   invById: Map<string, InventoryItem>,
   sim: Map<string, number>,
+  simulate: boolean,
 ): number | null {
+  if (!simulate || row.cooked) return null
   const lines = requiredLines(row, recipeById)
   if (lines === null) return null
   let missing = 0
@@ -137,6 +144,7 @@ function buildSlot(
   recipeById: Map<string, RecipeDetail>,
   invById: Map<string, InventoryItem>,
   sim: Map<string, number>,
+  simulate: boolean,
 ): MealSlot {
   const row = slotByKey.get(`${date}_${meal}`)
   if (!row) return { date, meal, assignment: null, shortfall: null, cooked: false }
@@ -144,7 +152,7 @@ function buildSlot(
     date,
     meal,
     assignment: toAssignment(row, recipeById),
-    shortfall: projectShortfall(row, recipeById, invById, sim),
+    shortfall: projectShortfall(row, recipeById, invById, sim, simulate),
     cooked: row.cooked,
   }
 }
@@ -164,11 +172,15 @@ export function buildWeek(
   for (const i of inventory) {
     if (i.state === 'tracked') sim.set(i.ingredient.id, i.quantity ?? 0)
   }
-  const days: DayPlan[] = weekDays(weekStart).map((date) => ({
-    date,
-    lunch: buildSlot(date, 'lunch', slotByKey, recipeById, invById, sim),
-    dinner: buildSlot(date, 'dinner', slotByKey, recipeById, invById, sim),
-  }))
+  const days: DayPlan[] = weekDays(weekStart).map((date) => {
+    // Only today-or-future slots participate in the forward shortfall projection.
+    const simulate = date >= todayISO()
+    return {
+      date,
+      lunch: buildSlot(date, 'lunch', slotByKey, recipeById, invById, sim, simulate),
+      dinner: buildSlot(date, 'dinner', slotByKey, recipeById, invById, sim, simulate),
+    }
+  })
   return { weekStart, days, readonly: isPastWeek(weekStart) }
 }
 
