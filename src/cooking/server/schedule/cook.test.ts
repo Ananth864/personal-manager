@@ -3,10 +3,12 @@ import { InMemoryScheduleRepo } from './repo'
 import type { ScheduleRepo } from './repo'
 import { InMemoryInventoryRepo } from '../inventory/repo'
 import type { InventoryRepo } from '../inventory/repo'
+import { InMemoryIngredientLedgerRepo } from '../inventory/ledger-repo'
+import type { IngredientLedgerRepo } from '../inventory/ledger-repo'
 import { InMemoryRecipeRepo } from '../recipes/repo'
 import { InMemoryFoodBankRepo } from '../food-bank/repo'
 import { addIngredient } from '../inventory/service'
-import { buildCookPreview, cook } from './cook'
+import { buildCookPreview, cook, uncook } from './cook'
 import type { Ingredient, InventoryItem } from '../inventory/types'
 
 const DATE = '2025-01-01'
@@ -16,12 +18,14 @@ describe('cook', () => {
   let inventory: InventoryRepo
   let recipes: InMemoryRecipeRepo
   let foodBank: InMemoryFoodBankRepo
+  let ledger: IngredientLedgerRepo
 
   beforeEach(() => {
     schedule = new InMemoryScheduleRepo()
     inventory = new InMemoryInventoryRepo()
     recipes = new InMemoryRecipeRepo()
     foodBank = new InMemoryFoodBankRepo()
+    ledger = new InMemoryIngredientLedgerRepo()
   })
 
   async function tracked(name: string, qty: number): Promise<Ingredient> {
@@ -60,7 +64,7 @@ describe('cook', () => {
   }
 
   async function cookSlot(date: string, meal: 'lunch' | 'dinner') {
-    return cook(schedule, inventory, foodBank, recipes, date, meal)
+    return cook(schedule, inventory, foodBank, recipes, ledger, date, meal)
   }
 
   it('decrements each Tracked ingredient by the recipe quantity', async () => {
@@ -150,8 +154,8 @@ describe('cook', () => {
     await schedule.upsertSlot({ slotDate: '2025-01-01', meal: 'dinner', assignmentType: 'recipe', recipeId })
     await schedule.upsertSlot({ slotDate: '2025-01-02', meal: 'dinner', assignmentType: 'recipe', recipeId })
 
-      await cook(schedule, inventory, foodBank, recipes, '2025-01-01', 'dinner')
-      await cook(schedule, inventory, foodBank, recipes, '2025-01-02', 'dinner')
+      await cook(schedule, inventory, foodBank, recipes, ledger, '2025-01-01', 'dinner')
+      await cook(schedule, inventory, foodBank, recipes, ledger, '2025-01-02', 'dinner')
 
       expect(foodBank.portionsFor(recipeId)).toBe(10)
     })
@@ -189,6 +193,96 @@ describe('cook', () => {
 
   it('refuses to cook an unassigned slot', async () => {
     await expect(cookSlot(DATE, 'lunch')).rejects.toThrow(/nothing is assigned/i)
+  })
+
+  describe('uncook', () => {
+    async function uncookSlot(date: string, meal: 'lunch' | 'dinner') {
+      return uncook(schedule, inventory, foodBank, recipes, ledger, date, meal)
+    }
+
+    it('restores a Tracked ingredient to its pre-cook quantity and reverses banking', async () => {
+      const egg = await tracked('Egg', 6)
+      const recipeId = await recipeWith('Pancakes', 4, [{ ingredient: egg, quantity: 2 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await cookSlot(DATE, 'lunch')
+      expect((await inventory.get(egg.id))?.quantity).toBe(4)
+      expect(foodBank.portionsFor(recipeId)).toBe(3)
+
+      await uncookSlot(DATE, 'lunch')
+
+      expect((await inventory.get(egg.id))?.quantity).toBe(6)
+      expect((await inventory.get(egg.id))?.state).toBe('tracked')
+      expect(foodBank.portionsFor(recipeId)).toBe(0)
+      expect((await schedule.getSlot(DATE, 'lunch'))?.cooked).toBe(false)
+    })
+
+    it('restores exactly the actual (clamped) consumption, not the recipe request', async () => {
+      const egg = await tracked('Egg', 2)
+      const recipeId = await recipeWith('Omelette', 2, [{ ingredient: egg, quantity: 5 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await cookSlot(DATE, 'lunch')
+      expect((await inventory.get(egg.id))?.state).toBe('unavailable')
+
+      await uncookSlot(DATE, 'lunch')
+
+      // Recipe asked for 5 but only 2 were on hand → ledger recorded −2, so
+      // Uncook restores exactly 2 (not 5).
+      expect((await inventory.get(egg.id))?.quantity).toBe(2)
+      expect((await inventory.get(egg.id))?.state).toBe('tracked')
+    })
+
+    it('preserves manual edits made between Cook and Uncook', async () => {
+      const egg = await tracked('Egg', 6)
+      const recipeId = await recipeWith('Pancakes', 4, [{ ingredient: egg, quantity: 2 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await cookSlot(DATE, 'lunch') // 6 → 4 (delta −2)
+      // Manual restock after the cook.
+      const item = (await inventory.get(egg.id))!
+      await inventory.save({ ...item, quantity: 10 })
+
+      await uncookSlot(DATE, 'lunch')
+
+      // 10 + 2 restored = 12 — the manual edit is preserved, not clobbered.
+      expect((await inventory.get(egg.id))?.quantity).toBe(12)
+    })
+
+    it('reverses banking floored at produced − reserved (reservations stay backed)', async () => {
+      const egg = await tracked('Egg', 12)
+      const recipeId = await recipeWith('Quiche', 4, [{ ingredient: egg, quantity: 2 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await cookSlot(DATE, 'lunch') // banks 3 portions
+      // Reserve 2 of them against future slots.
+      await schedule.upsertSlot({ slotDate: '2025-01-02', meal: 'lunch', assignmentType: 'foodbank', recipeId })
+      await schedule.upsertSlot({ slotDate: '2025-01-03', meal: 'lunch', assignmentType: 'foodbank', recipeId })
+
+      const result = await uncookSlot(DATE, 'lunch')
+
+      // discardable = 3 produced − 2 reserved = 1; only 1 portion pulled back.
+      expect(result.reversedPortions).toBe(1)
+      expect(foodBank.portionsFor(recipeId)).toBe(2)
+    })
+
+    it('throws if the slot was not cooked', async () => {
+      const egg = await tracked('Egg', 6)
+      const recipeId = await recipeWith('Pancakes', 4, [{ ingredient: egg, quantity: 2 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await expect(uncookSlot(DATE, 'lunch')).rejects.toThrow(/has not been cooked/i)
+    })
+
+    it('a second uncook is rejected (the first released the cooked flag)', async () => {
+      const egg = await tracked('Egg', 6)
+      const recipeId = await recipeWith('Pancakes', 4, [{ ingredient: egg, quantity: 2 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'lunch', assignmentType: 'recipe', recipeId })
+
+      await cookSlot(DATE, 'lunch')
+      await uncookSlot(DATE, 'lunch')
+      await expect(uncookSlot(DATE, 'lunch')).rejects.toThrow(/has not been cooked/i)
+    })
   })
 })
 

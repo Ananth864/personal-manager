@@ -26,6 +26,10 @@ _Avoid_: counted, quantified
 An Inventory state — the ingredient is not available (quantity is zero, or explicitly marked out). Cooking a Recipe that requires it triggers a warning (not a block); the cook may proceed, with the ingredient staying Unavailable (no negative quantities).
 _Avoid_: out, empty, missing
 
+**Ingredient Ledger**:
+An append-only record of the quantity changes a Cook applies to Tracked ingredients. Each entry stores the *actual* delta (post-clamp), not the recipe's requested quantity — so a Cook that asks for 3 eggs but only finds 2 records `-2`, letting Uncook restore exactly 2. Endless and Unavailable ingredients get no entry (they never change). The ledger is an audit/reversal mechanism, not the source of truth (Inventory quantity remains the live state).
+_Avoid_: transaction log, history, journal
+
 ### Recipes
 
 **Recipe**:
@@ -55,8 +59,12 @@ A Meal Slot marker indicating no cooking occurs for that slot — no Recipe, no 
 _Avoid_: eating out, skip, off
 
 **Cook**:
-A logged event that consumes ingredients and produces prepared food. Each Tracked Ingredient required by the Recipe or Ad-hoc Recipe is decremented by its required quantity (Tracked → Unavailable at zero); Endless ingredients are unaffected. The slot being cooked eats one of the portions; the remaining `servings − 1` (clamped at zero) are added to the Food Bank. Cook is the only thing that mutates Tracked Inventory or produces real Food Bank portions.
+A logged event that consumes ingredients and produces prepared food. Each Tracked Ingredient required by the Recipe or Ad-hoc Recipe is decremented by its required quantity (Tracked → Unavailable at zero); Endless ingredients are unaffected. The slot being cooked eats one of the portions; the remaining `servings − 1` (clamped at zero) are added to the Food Bank. Cook is the only thing that mutates Tracked Inventory or produces real Food Bank portions. Each decrement is recorded in the Ingredient Ledger so the Cook can be reversed by Uncook.
 _Avoid_: prepare, make
+
+**Uncook**:
+The inverse of Cook — reverses a cooked Meal Slot. Replays the slot's Ingredient Ledger entries (adding each actual delta back, restoring Tracked state where quantity becomes positive), reverses the Food Bank production (floored at `produced − reserved` so reservations stay backed), and releases the slot's cooked flag. The deliberate second thing (after Cook) that mutates Tracked Inventory. Endless/Unavailable ingredients had no ledger entry and so are unaffected.
+_Avoid_: revert, undo cook
 
 **Food Bank**:
 The pool of prepared portions available to be reserved by a Meal Slot. Reserving a portion at plan time reduces availability; clearing the slot releases it; when a Week archives, its reservations become permanent consumption. Tracked per Recipe (commingled across Cooks of the same Recipe). Reserving has no effect on Ingredient Inventory — ingredients were consumed at Cook time.

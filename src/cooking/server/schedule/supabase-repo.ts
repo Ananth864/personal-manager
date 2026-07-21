@@ -167,4 +167,16 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     }
     return data.length > 0
   }
+
+  async releaseCook(slotDate: string, meal: MealPosition): Promise<void> {
+    const { error } = await this.client
+      .from('cooking_meal_slots')
+      .update({ cooked: false })
+      .eq('slot_date', slotDate)
+      .eq('meal', meal)
+      .eq('cooked', true)
+    if (error) {
+      throw new Error(`Failed to release slot cook: ${error.message}`)
+    }
+  }
 }

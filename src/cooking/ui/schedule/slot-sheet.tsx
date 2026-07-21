@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, Plus, Utensils } from 'lucide-react'
+import { Check, ChevronLeft, Plus, RotateCcw, Utensils } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -125,6 +125,18 @@ export function SlotSheet({
       },
     }),
   )
+  const uncookMut = useMutation(
+    trpc.schedule.uncook.mutationOptions({
+      onSuccess: () => {
+        // Uncook restores Inventory, reverses Food Bank production, and
+        // releases the cooked flag — refresh all three views.
+        queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+        onOpenChange(false)
+      },
+    }),
+  )
 
   if (!slot) {
     return (
@@ -141,14 +153,16 @@ export function SlotSheet({
     markNoCookMut.isPending ||
     clearMut.isPending ||
     cookMut.isPending ||
-    assignFoodBankMut.isPending
+    assignFoodBankMut.isPending ||
+    uncookMut.isPending
   const errorMessage =
     assignRecipeMut.error?.message ??
     assignAdhocMut.error?.message ??
     markNoCookMut.error?.message ??
     clearMut.error?.message ??
     cookMut.error?.message ??
-    assignFoodBankMut.error?.message
+    assignFoodBankMut.error?.message ??
+    uncookMut.error?.message
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -193,6 +207,9 @@ export function SlotSheet({
             }
             onClear={() =>
               clearMut.mutate({ date: slot.date, meal: slot.meal })
+            }
+            onUncook={() =>
+              uncookMut.mutate({ date: slot.date, meal: slot.meal })
             }
           />
         )}
@@ -284,6 +301,7 @@ function Menu({
   onFoodBank,
   onNoCook,
   onClear,
+  onUncook,
 }: {
   slot: MealSlot
   pending: boolean
@@ -293,6 +311,7 @@ function Menu({
   onFoodBank: () => void
   onNoCook: () => void
   onClear: () => void
+  onUncook: () => void
 }) {
   const assigned = slot.assignment !== null
   const a = slot.assignment
@@ -305,9 +324,24 @@ function Menu({
         </Button>
       )}
       {slot.cooked && (
-        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-primary">
-          <Check className="h-4 w-4" /> Cooked
-        </div>
+        <>
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-primary">
+            <Check className="h-4 w-4" /> Cooked
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onUncook}
+            disabled={pending}
+            className="w-full"
+          >
+            <RotateCcw className="h-4 w-4" /> Uncook this meal
+          </Button>
+          <p className="px-1 text-xs text-muted-foreground">
+            Reverses the cook: restores consumed ingredients and pulls the
+            banked portions back from the Food Bank.
+          </p>
+        </>
       )}
       <MenuButton label="Assign a recipe" hint="From your catalog" onClick={onRecipe} disabled={pending} />
       <MenuButton label="Add an ad-hoc recipe" hint="A one-off ingredient list" onClick={onAdhoc} disabled={pending} />

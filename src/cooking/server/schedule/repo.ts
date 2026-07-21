@@ -34,6 +34,11 @@ export interface ScheduleRepo {
    * one-Cook-per-slot even under concurrent calls.
    */
   claimForCook: (slotDate: string, meal: MealPosition) => Promise<boolean>
+  /**
+   * Release a slot's cook claim (Uncook): set cooked=false. The deliberate
+   * inverse of claimForCook — releases the slot so it can be cooked again.
+   */
+  releaseCook: (slotDate: string, meal: MealPosition) => Promise<void>
 }
 
 /** In-memory implementation used by the service-layer tests. */
@@ -105,5 +110,11 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
     if (!row || row.cooked) return false
     this.slots.set(this.key(slotDate, meal), { ...row, cooked: true })
     return true
+  }
+
+  async releaseCook(slotDate: string, meal: MealPosition): Promise<void> {
+    const row = this.slots.get(this.key(slotDate, meal))
+    if (!row) return
+    this.slots.set(this.key(slotDate, meal), { ...row, cooked: false })
   }
 }

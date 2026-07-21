@@ -26,9 +26,10 @@ import {
   clearSlot,
   markNoCook,
 } from '#/cooking/server/schedule/service'
-import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
+import { buildCookPreview, cook, uncook } from '#/cooking/server/schedule/cook'
 import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/server/food-bank/availability'
 import { discardPortions } from '#/cooking/server/food-bank/service'
+import { SupabaseIngredientLedgerRepo } from '#/cooking/server/inventory/ledger-supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
@@ -50,6 +51,10 @@ function scheduleRepoFor(ctx: Context) {
 
 function foodBankRepoFor(ctx: Context) {
   return new SupabaseFoodBankRepo(ctx.token!)
+}
+
+function ledgerRepoFor(ctx: Context) {
+  return new SupabaseIngredientLedgerRepo(ctx.token!)
 }
 
 /** Fetch the user's inventory snapshot, for availability badges. */
@@ -282,6 +287,23 @@ export const trpcRouter = createTRPCRouter({
           repoFor(ctx),
           foodBankRepoFor(ctx),
           recipeRepoFor(ctx),
+          ledgerRepoFor(ctx),
+          input.date,
+          input.meal,
+        ),
+      ),
+
+    uncook: protectedProcedure
+      .input(
+        z.object({ date: z.string(), meal: z.enum(['lunch', 'dinner']) }),
+      )
+      .mutation(({ ctx, input }) =>
+        uncook(
+          scheduleRepoFor(ctx),
+          repoFor(ctx),
+          foodBankRepoFor(ctx),
+          recipeRepoFor(ctx),
+          ledgerRepoFor(ctx),
           input.date,
           input.meal,
         ),

@@ -60,3 +60,23 @@ export function applyCookDecrement(item: InventoryItem, required: number): Inven
     updatedAt: new Date(),
   }
 }
+
+/**
+ * The Uncook increment (CONTEXT.md → Uncook; ADR-0008). The inverse of a single
+ * Cook decrement: restores `amount` to the ingredient. Unavailable (zero)
+ * ingredients return to Tracked once the restored quantity is positive; Tracked
+ * ingredients accumulate; Endless ingredients are untouched (they were never
+ * decremented). Only restores by the ledger's actual delta, so manual edits
+ * made after the Cook are preserved, not clobbered.
+ */
+export function applyUncookIncrement(item: InventoryItem, amount: number): InventoryItem {
+  if (amount <= 0) return item
+  if (item.state === 'endless') return item
+  const base = item.state === 'tracked' ? item.quantity ?? 0 : 0
+  return {
+    ...item,
+    state: 'tracked',
+    quantity: base + amount,
+    updatedAt: new Date(),
+  }
+}

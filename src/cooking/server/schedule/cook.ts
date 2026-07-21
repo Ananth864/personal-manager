@@ -1,8 +1,10 @@
-import { applyCookDecrement } from '../inventory/rules'
+import { applyCookDecrement, applyUncookIncrement } from '../inventory/rules'
 import type { InventoryRepo } from '../inventory/repo'
+import type { IngredientLedgerRepo } from '../inventory/ledger-repo'
 import type { InventoryItem, InventoryState } from '../inventory/types'
 import type { RecipeRepo } from '../recipes/repo'
 import type { FoodBankRepo } from '../food-bank/repo'
+import { discardableFor } from '../food-bank/service'
 import type { ScheduleRepo } from './repo'
 import type { MealPosition } from './types'
 
@@ -95,6 +97,7 @@ export async function cook(
   inventoryRepo: InventoryRepo,
   foodBankRepo: FoodBankRepo,
   recipeRepo: RecipeRepo,
+  ledgerRepo: IngredientLedgerRepo,
   slotDate: string,
   meal: MealPosition,
 ): Promise<{ produced: number }> {
@@ -140,11 +143,25 @@ export async function cook(
   }
 
   // Decrement Tracked ingredients (Endless/Unavailable unaffected). Cook is
-  // warn-only — never blocks, never goes negative.
+  // warn-only — never blocks, never goes negative. Each actual delta is recorded
+  // in the Ingredient Ledger so this Cook can be reversed by Uncook (ADR-0008).
   for (const line of lines) {
     const item = await inventoryRepo.get(line.ingredientId)
     if (!item) continue
-    await inventoryRepo.save(applyCookDecrement(item, line.quantity))
+    const projected = applyCookDecrement(item, line.quantity)
+    await inventoryRepo.save(projected)
+    if (item.state === 'tracked') {
+      const before = item.quantity ?? 0
+      const after = projected.quantity ?? 0
+      if (after !== before) {
+        await ledgerRepo.record({
+          ingredientId: line.ingredientId,
+          delta: after - before,
+          sourceDate: slotDate,
+          sourceMeal: meal,
+        })
+      }
+    }
   }
 
   if (portionsToProduce > 0) {
@@ -152,4 +169,78 @@ export async function cook(
   }
 
   return { produced: portionsToProduce }
+}
+
+/**
+ * Uncook a slot's meal (CONTEXT.md → Uncook; ADR-0008). The deliberate inverse
+ * of Cook — the second thing that mutates Tracked Inventory. Replays the slot's
+ * Ingredient Ledger entries (restoring each actual delta, so Unavailable →
+ * Tracked where quantity becomes positive), reverses the Food Bank production
+ * (floored at `produced − reserved` so reservations stay backed), and releases
+ * the cooked flag so the slot can be cooked again.
+ *
+ * Endless/Unavailable ingredients had no ledger entry and so are unaffected.
+ * Manual edits made between Cook and Uncook are preserved — only the Cook's own
+ * delta is reversed. The banking reversal is non-throwing: if portions were
+ * reserved after the Cook, fewer are pulled back (clear those slots first to
+ * fully reverse the banking).
+ */
+export async function uncook(
+  scheduleRepo: ScheduleRepo,
+  inventoryRepo: InventoryRepo,
+  foodBankRepo: FoodBankRepo,
+  recipeRepo: RecipeRepo,
+  ledgerRepo: IngredientLedgerRepo,
+  slotDate: string,
+  meal: MealPosition,
+): Promise<{ reversedPortions: number }> {
+  const slot = await scheduleRepo.getSlot(slotDate, meal)
+  if (!slot) {
+    throw new Error('Nothing is assigned to this slot.')
+  }
+  if (!slot.cooked) {
+    throw new Error('This meal has not been cooked yet.')
+  }
+
+  // Resolve bankKey + the portions the Cook produced (same projection as cook()).
+  let bankKey: string | null
+  let portionsProduced: number
+  if (slot.assignmentType === 'recipe') {
+    if (!slot.recipeId) throw new Error('This slot has no recipe.')
+    const recipe = await recipeRepo.get(slot.recipeId)
+    if (!recipe) throw new Error('The recipe for this slot could not be found.')
+    portionsProduced = Math.max(0, recipe.servings - 1)
+    bankKey = slot.recipeId
+  } else if (slot.assignmentType === 'adhoc') {
+    portionsProduced = Math.max(0, (slot.adhocServings ?? 1) - 1)
+    bankKey = null
+  } else {
+    throw new Error('Only fresh-cook slots (Recipe or Ad-hoc) can be uncooked.')
+  }
+
+  // 1. Restore ingredients: replay each ledger delta in reverse (+|delta|).
+  const entries = await ledgerRepo.listActiveForSlot(slotDate, meal)
+  for (const entry of entries) {
+    const item = await inventoryRepo.get(entry.ingredientId)
+    if (!item) continue
+    await inventoryRepo.save(applyUncookIncrement(item, Math.abs(entry.delta)))
+  }
+
+  // 2. Mark the ledger entries reversed (append-only; keep the audit trail).
+  await ledgerRepo.reverseForSlot(slotDate, meal)
+
+  // 3. Reverse the Food Bank production, floored so reservations stay backed.
+  let reversedPortions = 0
+  if (portionsProduced > 0) {
+    const discardable = await discardableFor(foodBankRepo, scheduleRepo, bankKey)
+    reversedPortions = Math.min(portionsProduced, discardable)
+    if (reversedPortions > 0) {
+      await foodBankRepo.removePortions(bankKey, reversedPortions)
+    }
+  }
+
+  // 4. Release the cook claim (last, after all reversals succeeded).
+  await scheduleRepo.releaseCook(slotDate, meal)
+
+  return { reversedPortions }
 }
