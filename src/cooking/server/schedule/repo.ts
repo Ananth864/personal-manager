@@ -18,8 +18,13 @@ export interface ScheduleRepo {
   getSlot: (slotDate: string, meal: MealPosition) => Promise<SlotRow | null>
   upsertSlot: (input: UpsertSlotInput) => Promise<void>
   clearSlot: (slotDate: string, meal: MealPosition) => Promise<void>
-  /** Mark a slot cooked (one Cook per slot). */
-  markCooked: (slotDate: string, meal: MealPosition) => Promise<void>
+  /**
+   * Atomically claim a slot for cooking: set cooked=true only if it is
+   * currently uncooked. Returns true if this call claimed it, false if it was
+   * already cooked (or doesn't exist). The atomic conditional update enforces
+   * one-Cook-per-slot even under concurrent calls.
+   */
+  claimForCook: (slotDate: string, meal: MealPosition) => Promise<boolean>
 }
 
 /** In-memory implementation used by the service-layer tests. */
@@ -55,6 +60,7 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
       recipeId: input.recipeId ?? null,
       adhocName: input.adhocName ?? null,
       adhocIngredients: input.adhocIngredients ?? null,
+      adhocServings: input.adhocServings ?? null,
       cooked: existing?.cooked ?? false,
     }
     this.slots.set(this.key(input.slotDate, input.meal), row)
@@ -64,9 +70,10 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
     this.slots.delete(this.key(slotDate, meal))
   }
 
-  async markCooked(slotDate: string, meal: MealPosition): Promise<void> {
+  async claimForCook(slotDate: string, meal: MealPosition): Promise<boolean> {
     const row = this.slots.get(this.key(slotDate, meal))
-    if (!row) return
+    if (!row || row.cooked) return false
     this.slots.set(this.key(slotDate, meal), { ...row, cooked: true })
+    return true
   }
 }

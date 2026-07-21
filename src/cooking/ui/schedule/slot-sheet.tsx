@@ -34,6 +34,7 @@ export function SlotSheet({
   const queryClient = useQueryClient()
   const [mode, setMode] = useState<Mode>('menu')
   const [adhocName, setAdhocName] = useState('')
+  const [adhocServings, setAdhocServings] = useState('1')
   const [adhocRows, setAdhocRows] = useState<PickerRow[]>([])
 
   const open = slot !== null
@@ -43,6 +44,7 @@ export function SlotSheet({
     if (open) {
       setMode('menu')
       setAdhocName('')
+      setAdhocServings('1')
       setAdhocRows([])
     }
   }, [open, slot?.date, slot?.meal])
@@ -190,9 +192,11 @@ export function SlotSheet({
         {mode === 'adhoc' && (
           <AdhocForm
             name={adhocName}
+            servings={adhocServings}
             rows={adhocRows}
             ingredients={inventoryQuery.data ?? []}
             onName={setAdhocName}
+            onServings={setAdhocServings}
             onRows={setAdhocRows}
             pending={assignAdhocMut.isPending}
             onSave={() =>
@@ -200,6 +204,7 @@ export function SlotSheet({
                 date: slot.date,
                 meal: slot.meal,
                 name: adhocName.trim() || null,
+                servings: Number(adhocServings) || 1,
                 ingredients: adhocRows.map((r) => ({
                   ingredientId: r.ingredientId,
                   quantity: Number(r.quantity),
@@ -368,17 +373,21 @@ function RecipePicker({
 
 function AdhocForm({
   name,
+  servings,
   rows,
   ingredients,
   onName,
+  onServings,
   onRows,
   pending,
   onSave,
 }: {
   name: string
+  servings: string
   rows: PickerRow[]
   ingredients: { ingredient: { id: string; name: string; unit: string } }[]
   onName: (v: string) => void
+  onServings: (v: string) => void
   onRows: (rows: PickerRow[]) => void
   pending: boolean
   onSave: () => void
@@ -391,7 +400,9 @@ function AdhocForm({
         r.ingredientId !== '' &&
         Number.isFinite(Number(r.quantity)) &&
         Number(r.quantity) > 0,
-    )
+    ) &&
+    Number.isInteger(Number(servings)) &&
+    Number(servings) >= 1
 
   return (
     <div className="flex flex-1 flex-col gap-5 overflow-y-auto">
@@ -403,6 +414,21 @@ function AdhocForm({
           value={name}
           onChange={(e) => onName(e.target.value)}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="adhoc-servings">Servings</Label>
+        <Input
+          id="adhoc-servings"
+          inputMode="numeric"
+          placeholder="1"
+          value={servings}
+          onChange={(e) => onServings(e.target.value)}
+          className="w-24"
+        />
+        <p className="text-xs text-muted-foreground">
+          How many portions this cook adds to the Food Bank.
+        </p>
       </div>
 
       <div className="space-y-2">

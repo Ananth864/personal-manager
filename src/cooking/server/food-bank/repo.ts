@@ -3,24 +3,28 @@
  * T05 only PRODUCES portions here; reservations/withdrawals land in T06.
  *
  * Portions are tracked per Recipe and commingled across Cooks of the same
- * Recipe. `addPortions` is the single write path — Cook is the only operation
- * that produces portions.
+ * Recipe. Ad-hoc Cooks (no catalog identity) commingle into a single NULL
+ * recipe-id pool per user. `addPortions` is the single write path — Cook is the
+ * only operation that produces portions.
  */
 export interface FoodBankRepo {
-  addPortions: (recipeId: string, portions: number) => Promise<void>
+  addPortions: (recipeId: string | null, portions: number) => Promise<void>
 }
 
 /** In-memory implementation used by the Cook service-layer tests. */
 export class InMemoryFoodBankRepo implements FoodBankRepo {
   private readonly portions = new Map<string, number>()
+  private static readonly ADHOC_KEY = '__adhoc__'
 
-  async addPortions(recipeId: string, portions: number): Promise<void> {
+  async addPortions(recipeId: string | null, portions: number): Promise<void> {
     if (portions <= 0) return
-    this.portions.set(recipeId, (this.portions.get(recipeId) ?? 0) + portions)
+    const key = recipeId ?? InMemoryFoodBankRepo.ADHOC_KEY
+    this.portions.set(key, (this.portions.get(key) ?? 0) + portions)
   }
 
-  /** Test-only accessor. */
-  portionsFor(recipeId: string): number {
-    return this.portions.get(recipeId) ?? 0
+  /** Test-only accessor (null recipeId reads the ad-hoc pool). */
+  portionsFor(recipeId: string | null): number {
+    return this.portions.get(recipeId ?? InMemoryFoodBankRepo.ADHOC_KEY) ?? 0
   }
 }
+

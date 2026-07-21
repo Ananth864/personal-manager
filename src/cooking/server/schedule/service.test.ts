@@ -48,6 +48,7 @@ function slot(
     recipeId: null,
     adhocName: null,
     adhocIngredients: null,
+    adhocServings: null,
     cooked: false,
     ...partial,
   }

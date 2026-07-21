@@ -14,7 +14,7 @@ export class SupabaseFoodBankRepo implements FoodBankRepo {
     this.client = createCookingClient(token)
   }
 
-  async addPortions(recipeId: string, portions: number): Promise<void> {
+  async addPortions(recipeId: string | null, portions: number): Promise<void> {
     if (portions <= 0) return
     const { error } = await this.client.rpc('cooking_add_portions', {
       p_recipe: recipeId,

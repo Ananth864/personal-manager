@@ -209,15 +209,24 @@ export async function assignAdhoc(
   repo: ScheduleRepo,
   slotDate: string,
   meal: MealPosition,
-  payload: { name?: string | null; ingredients: AdhocIngredient[] },
+  payload: {
+    name?: string | null
+    ingredients: AdhocIngredient[]
+    servings?: number | null
+  },
 ): Promise<void> {
   validateSlotKey(slotDate)
+  const servings = payload.servings == null ? 1 : payload.servings
+  if (!Number.isInteger(servings) || servings < 1) {
+    throw new Error('Ad-hoc servings must be a whole number of 1 or more.')
+  }
   const input: UpsertSlotInput = {
     slotDate,
     meal,
     assignmentType: 'adhoc',
     adhocName: payload.name?.trim() ? payload.name.trim() : null,
     adhocIngredients: normalizeAdhocIngredients(payload.ingredients),
+    adhocServings: servings,
   }
   return repo.upsertSlot(input)
 }

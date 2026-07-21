@@ -146,20 +146,21 @@ describe('cook', () => {
     expect(foodBank.portionsFor(recipeId)).toBe(12)
   })
 
-  it('cooks an Ad-hoc slot (decrements) but produces no Food Bank portions', async () => {
+  it('cooks an Ad-hoc slot: decrements and produces servings into the ad-hoc pool', async () => {
     const bread = await tracked('Bread', 4)
     await schedule.upsertSlot({
       slotDate: DATE,
       meal: 'lunch',
       assignmentType: 'adhoc',
       adhocName: 'Toast',
+      adhocServings: 2,
       adhocIngredients: [{ ingredientId: bread.id, quantity: 2 }],
     })
 
     const result = await cookSlot(DATE, 'lunch')
-    expect(result.produced).toBe(0)
+    expect(result.produced).toBe(2)
     expect((await inventory.get(bread.id))?.quantity).toBe(2)
-    expect(foodBank.portionsFor('__adhoc__')).toBe(0)
+    expect(foodBank.portionsFor(null)).toBe(2) // commingled ad-hoc pool
   })
 
   it('blocks a second Cook on the same slot (one Cook per slot)', async () => {

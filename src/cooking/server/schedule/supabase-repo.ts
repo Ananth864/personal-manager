@@ -18,6 +18,7 @@ interface RawRow {
   recipe_id: string | null
   adhoc_name: string | null
   adhoc_ingredients: AdhocIngredient[] | null
+  adhoc_servings: number | null
   cooked: boolean
 }
 
@@ -30,6 +31,7 @@ function toSlotRow(r: RawRow): SlotRow {
     recipeId: r.recipe_id,
     adhocName: r.adhoc_name,
     adhocIngredients: r.adhoc_ingredients,
+    adhocServings: r.adhoc_servings,
     cooked: r.cooked,
   }
 }
@@ -42,6 +44,7 @@ function rowFromInput(input: UpsertSlotInput) {
     recipe_id: input.recipeId ?? null,
     adhoc_name: input.adhocName ?? null,
     adhoc_ingredients: input.adhocIngredients ?? null,
+    adhoc_servings: input.adhocServings ?? null,
   }
 }
 
@@ -62,7 +65,7 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
       .select(
-        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, cooked',
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked',
       )
       .gte('slot_date', weekStart)
       .lte('slot_date', end)
@@ -78,7 +81,7 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
       .select(
-        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, cooked',
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked',
       )
       .eq('slot_date', slotDate)
       .eq('meal', meal)
@@ -109,14 +112,19 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     }
   }
 
-  async markCooked(slotDate: string, meal: MealPosition): Promise<void> {
-    const { error } = await this.client
+  async claimForCook(slotDate: string, meal: MealPosition): Promise<boolean> {
+    // Atomic conditional update: only flips cooked if it was false. If 0 rows
+    // match (already cooked, or missing), nothing changed and we return false.
+    const { data, error } = await this.client
       .from('cooking_meal_slots')
       .update({ cooked: true })
       .eq('slot_date', slotDate)
       .eq('meal', meal)
+      .eq('cooked', false)
+      .select('id')
     if (error) {
-      throw new Error(`Failed to mark slot cooked: ${error.message}`)
+      throw new Error(`Failed to claim slot for cooking: ${error.message}`)
     }
+    return data.length > 0
   }
 }

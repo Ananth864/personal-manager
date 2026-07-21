@@ -62,6 +62,8 @@ export interface SlotRow {
   recipeId: string | null
   adhocName: string | null
   adhocIngredients: AdhocIngredient[] | null
+  /** Portions an ad-hoc Cook produces into the Food Bank (null otherwise). */
+  adhocServings: number | null
   cooked: boolean
 }
 
@@ -73,4 +75,5 @@ export interface UpsertSlotInput {
   recipeId?: string | null
   adhocName?: string | null
   adhocIngredients?: AdhocIngredient[] | null
+  adhocServings?: number | null
 }

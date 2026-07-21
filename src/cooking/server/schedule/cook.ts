@@ -83,9 +83,12 @@ export function buildCookPreview(
  *
  * - Recipe slots: decrement ingredients, add `servings` portions to the Food
  *   Bank (commingled per recipe).
- * - Ad-hoc slots: decrement ingredients, produce NO portions (no catalog
- *   identity, no servings).
- * - Marks the slot cooked; a second Cook on the same slot is rejected.
+ * - Ad-hoc slots: decrement ingredients, add `adhocServings` portions to the
+ *   commingled ad-hoc pool (null recipe id).
+ *
+ * One Cook per slot is enforced by an atomic conditional claim (`claimForCook`)
+ * BEFORE any decrement or portion write — two concurrent Cooks can't both
+ * proceed. Planning is not Cooking (ADR-0001); Cook is the deliberate exception.
  */
 export async function cook(
   scheduleRepo: ScheduleRepo,
@@ -103,8 +106,10 @@ export async function cook(
     throw new Error('This meal has already been cooked.')
   }
 
+  // Resolve the required lines + portions BEFORE claiming (read-only).
   let lines: { ingredientId: string; quantity: number }[]
   let portionsToProduce: number
+  let bankKey: string | null
   if (slot.assignmentType === 'recipe') {
     if (!slot.recipeId) throw new Error('This slot has no recipe to cook.')
     const recipe = await recipeRepo.get(slot.recipeId)
@@ -114,26 +119,36 @@ export async function cook(
       quantity: i.quantity,
     }))
     portionsToProduce = recipe.servings
+    bankKey = slot.recipeId
   } else if (slot.assignmentType === 'adhoc') {
     lines = (slot.adhocIngredients ?? []).map((a) => ({
       ingredientId: a.ingredientId,
       quantity: a.quantity,
     }))
-    portionsToProduce = 0
+    portionsToProduce = slot.adhocServings ?? 1
+    bankKey = null // the commingled ad-hoc pool
   } else {
     throw new Error('Only fresh-cook slots (Recipe or Ad-hoc) can be cooked.')
   }
 
+  // Atomically claim the slot. If another Cook claimed it between our getSlot
+  // and now, this returns false and we abort before touching Inventory.
+  const claimed = await scheduleRepo.claimForCook(slotDate, meal)
+  if (!claimed) {
+    throw new Error('This meal has already been cooked.')
+  }
+
+  // Decrement Tracked ingredients (Endless/Unavailable unaffected). Cook is
+  // warn-only — never blocks, never goes negative.
   for (const line of lines) {
     const item = await inventoryRepo.get(line.ingredientId)
     if (!item) continue
     await inventoryRepo.save(applyCookDecrement(item, line.quantity))
   }
 
-  if (portionsToProduce > 0 && slot.assignmentType === 'recipe' && slot.recipeId) {
-    await foodBankRepo.addPortions(slot.recipeId, portionsToProduce)
+  if (portionsToProduce > 0) {
+    await foodBankRepo.addPortions(bankKey, portionsToProduce)
   }
 
-  await scheduleRepo.markCooked(slotDate, meal)
   return { produced: portionsToProduce }
 }

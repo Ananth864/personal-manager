@@ -181,6 +181,7 @@ export const trpcRouter = createTRPCRouter({
           date: z.string(),
           meal: z.enum(['lunch', 'dinner']),
           name: z.string().nullable(),
+          servings: z.number().int().min(1).nullable(),
           ingredients: z.array(recipeLineSchema),
         }),
       )
@@ -242,7 +243,7 @@ export const trpcRouter = createTRPCRouter({
               }
             }),
             inventory,
-            0,
+            slot.adhocServings ?? 1,
           )
         }
         return null
