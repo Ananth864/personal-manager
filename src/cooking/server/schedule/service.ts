@@ -4,7 +4,7 @@ import type { RecipeRepo } from '../recipes/repo'
 import type { FoodBankRepo } from '../food-bank/repo'
 import { availableFor, computePlannedProductions } from '../food-bank/availability'
 import type { ScheduleRepo } from './repo'
-import { isPastWeek, mondayOfWeek, todayISO, weekDays } from '../../schedule/date-utils'
+import { addDays, isPastWeek, mondayOfWeek, todayISO, weekDays } from '../../schedule/date-utils'
 import type {
   AdhocIngredient,
   DayPlan,
@@ -197,7 +197,15 @@ export function buildWeek(
 
 // ---------------------------------------------------------------------------
 // Write: Schedule mutations. NONE of these touch Inventory (ADR-0001).
+// Past weeks are read-only archives, so every mutation rejects a past-week
+// slot (enforces ADR-0006's archive-lock for Food Bank reservations too).
 // ---------------------------------------------------------------------------
+
+function rejectPastWeek(slotDate: string): void {
+  if (slotDate < mondayOfWeek(todayISO())) {
+    throw new Error("Can't edit a past week — past weeks are read-only.")
+  }
+}
 
 export async function assignRecipe(
   repo: ScheduleRepo,
@@ -206,6 +214,7 @@ export async function assignRecipe(
   recipeId: string,
 ): Promise<void> {
   validateSlotKey(slotDate)
+  rejectPastWeek(slotDate)
   if (!recipeId) throw new Error('A recipe is required.')
   const input: UpsertSlotInput = {
     slotDate,
@@ -227,6 +236,7 @@ export async function assignAdhoc(
   },
 ): Promise<void> {
   validateSlotKey(slotDate)
+  rejectPastWeek(slotDate)
   const servings = payload.servings == null ? 1 : payload.servings
   if (!Number.isInteger(servings) || servings < 1) {
     throw new Error('Ad-hoc servings must be a whole number of 1 or more.')
@@ -248,6 +258,7 @@ export async function markNoCook(
   meal: MealPosition,
 ): Promise<void> {
   validateSlotKey(slotDate)
+  rejectPastWeek(slotDate)
   return repo.upsertSlot({ slotDate, meal, assignmentType: 'nocook' })
 }
 
@@ -257,11 +268,7 @@ export async function clearSlot(
   meal: MealPosition,
 ): Promise<void> {
   validateSlotKey(slotDate)
-  // Past weeks are read-only archives — clearing is blocked so an archived Food
-  // Bank reservation can't be released (ADR-0006: archive locks reservations).
-  if (slotDate < mondayOfWeek(todayISO())) {
-    throw new Error("Can't clear a slot in a past week — past weeks are read-only.")
-  }
+  rejectPastWeek(slotDate)
   return repo.clearSlot(slotDate, meal)
 }
 
@@ -271,7 +278,7 @@ export async function clearSlot(
  * ingredients were consumed at Cook time. Blocks when nothing is available.
  *
  * Availability includes portions projected from planned (uncooked) cooks, so a
- * plan can reserve the future leftovers of a meal cooked earlier in the week.
+ * plan can reserve the future portions of a meal cooked earlier in the week.
  */
 export async function assignFoodBank(
   repo: ScheduleRepo,
@@ -282,6 +289,7 @@ export async function assignFoodBank(
   recipeId: string | null,
 ): Promise<void> {
   validateSlotKey(slotDate)
+  rejectPastWeek(slotDate)
   const [produced, reservations, plannedCooks, recipes] = await Promise.all([
     foodBankRepo.listProduced(),
     repo.listFoodBankSlots(),
@@ -289,10 +297,12 @@ export async function assignFoodBank(
     recipeRepo.list(),
   ])
   const servingsById = new Map(recipes.map((r) => [r.id, r.servings]))
+  const weekStart = mondayOfWeek(todayISO())
   const planned = computePlannedProductions(
     plannedCooks,
     (id) => servingsById.get(id),
-    mondayOfWeek(todayISO()),
+    weekStart,
+    addDays(weekStart, 14),
   )
   const producedFor = produced
     .filter((p) => p.recipeId === recipeId)

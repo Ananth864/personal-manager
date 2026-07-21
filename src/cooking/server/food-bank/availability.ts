@@ -5,8 +5,8 @@
  *   produced  — real portions from past Cooks (the cooking_food_bank ledger)
  *   planned   — portions that planned-but-uncooked meals *will* produce
  *               (Σ servings − 1 over uncooked recipe/ad-hoc slots this/next
- *               week). Lets a plan reserve future leftovers: "cook Chili Mon,
- *               eat the leftovers Tue–Thu". When a planned cook fires, its
+ *               week). Lets a plan reserve future portions: "cook Chili Mon,
+ *               eat the portions Tue–Thu". When a planned cook fires, its
  *               portions move from `planned` to `produced` — no double-count.
  *   reserved  — Food Bank withdrawal slots (every week, active + archived)
  *
@@ -56,18 +56,20 @@ export function availableFor(
 
 /**
  * Project the portions that planned (uncooked) meals will produce, grouped by
- * recipe. Only counts meals in the current week or later (past uncooked slots
- * are water under the bridge). The cooking slot eats one portion, so each meal
- * contributes `servings − 1` (clamped at 0).
+ * recipe. Only counts meals in the plannable horizon [currentWeekStart,
+ * horizonEnd) — current and next week, per CONTEXT. Past weeks are water under
+ * the bridge; beyond-next-week isn't plannable. The cooking slot eats one
+ * portion, so each meal contributes `servings − 1` (clamped at 0).
  */
 export function computePlannedProductions(
   plannedCooks: PlannedCook[],
   servingsFor: (recipeId: string) => number | undefined,
   currentWeekStart: string,
+  horizonEnd: string,
 ): ProducedPortion[] {
   const byId = new Map<string | null, number>()
   for (const cook of plannedCooks) {
-    if (cook.slotDate < currentWeekStart) continue
+    if (cook.slotDate < currentWeekStart || cook.slotDate >= horizonEnd) continue
     const servings =
       cook.assignmentType === 'adhoc'
         ? cook.adhocServings

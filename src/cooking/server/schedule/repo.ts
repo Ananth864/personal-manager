@@ -18,7 +18,7 @@ export interface ScheduleRepo {
   listFoodBankSlots: () => Promise<{ recipeId: string | null; slotDate: string }[]>
   /**
    * All uncooked recipe/ad-hoc slots (every week) — planned cooks whose future
-   * leftovers can be projected into Food Bank availability.
+   * portions can be projected into Food Bank availability.
    */
   listPlannedCooks: () => Promise<
     { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]

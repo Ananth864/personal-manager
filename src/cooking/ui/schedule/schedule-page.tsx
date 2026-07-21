@@ -216,7 +216,7 @@ function SlotContent({ assignment }: { assignment: SlotAssignment | null }) {
   return (
     <span className="truncate text-sm font-medium">
       {assignment.recipeName ? `${assignment.recipeName}` : 'Ad-hoc portion'}
-      <span className="font-normal text-muted-foreground"> · leftover</span>
+      <span className="font-normal text-muted-foreground"> · Food Bank</span>
     </span>
   )
 }

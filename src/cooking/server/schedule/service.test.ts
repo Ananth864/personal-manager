@@ -3,9 +3,12 @@ import { InMemoryScheduleRepo } from './repo'
 import type { ScheduleRepo } from './repo'
 import { InMemoryInventoryRepo } from '../inventory/repo'
 import type { InventoryRepo } from '../inventory/repo'
+import { InMemoryRecipeRepo } from '../recipes/repo'
+import { InMemoryFoodBankRepo } from '../food-bank/repo'
 import { addIngredient } from '../inventory/service'
 import {
   assignAdhoc,
+  assignFoodBank,
   assignRecipe,
   buildWeek,
   clearSlot,
@@ -233,6 +236,78 @@ describe('schedule service', () => {
           ],
         }),
       ).rejects.toThrow(/twice/i)
+    })
+  })
+
+  describe('past weeks are read-only (archive lock)', () => {
+    let schedule: ScheduleRepo
+    beforeEach(() => {
+      schedule = new InMemoryScheduleRepo()
+    })
+
+    it('clearSlot rejects a past-week slot', async () => {
+      const pastDate = addDays(currentWeekStart(), -7)
+      await expect(clearSlot(schedule, pastDate, 'lunch')).rejects.toThrow(/past week/i)
+    })
+
+    it('assignRecipe rejects a past-week slot', async () => {
+      await expect(
+        assignRecipe(schedule, addDays(currentWeekStart(), -7), 'lunch', 'rcp_1'),
+      ).rejects.toThrow(/past week/i)
+    })
+  })
+
+  describe('Food Bank reservations (service layer)', () => {
+    let schedule: ScheduleRepo
+    let recipes: InMemoryRecipeRepo
+    let foodBank: InMemoryFoodBankRepo
+
+    beforeEach(async () => {
+      schedule = new InMemoryScheduleRepo()
+      recipes = new InMemoryRecipeRepo()
+      foodBank = new InMemoryFoodBankRepo()
+    })
+
+    it('reserves portions and blocks once availability runs out', async () => {
+      const rcp = await recipes.create({
+        name: 'Chili',
+        servings: 4,
+        notes: null,
+        ingredients: [],
+      })
+      await foodBank.addPortions(rcp.id, 3) // 3 real portions available
+
+      const base = addDays(currentWeekStart(), 7) // next week, in horizon
+      await assignFoodBank(schedule, foodBank, recipes, base, 'lunch', rcp.id)
+      await assignFoodBank(schedule, foodBank, recipes, addDays(base, 1), 'lunch', rcp.id)
+      await assignFoodBank(schedule, foodBank, recipes, addDays(base, 2), 'lunch', rcp.id)
+
+      // The three reservations each created a foodbank slot.
+      const reservedSlot = await schedule.getSlot(base, 'lunch')
+      expect(reservedSlot?.assignmentType).toBe('foodbank')
+      expect(reservedSlot?.recipeId).toBe(rcp.id)
+
+      // A 4th would over-reserve (3 produced − 3 reserved = 0).
+      await expect(
+        assignFoodBank(schedule, foodBank, recipes, addDays(base, 3), 'lunch', rcp.id),
+      ).rejects.toThrow(/no portions available/i)
+    })
+
+    it('reserves against projected portions from a planned cook', async () => {
+      const rcp = await recipes.create({
+        name: 'Chili',
+        servings: 4,
+        notes: null,
+        ingredients: [],
+      })
+      const base = addDays(currentWeekStart(), 1)
+      // Plan a cook (uncooked recipe slot) — projects servings − 1 = 3 portions.
+      await assignRecipe(schedule, base, 'lunch', rcp.id)
+
+      // No real portions, but the projected 3 let us reserve 2 future portions.
+      await assignFoodBank(schedule, foodBank, recipes, addDays(base, 1), 'dinner', rcp.id)
+      await assignFoodBank(schedule, foodBank, recipes, addDays(base, 2), 'dinner', rcp.id)
+      expect((await schedule.getSlot(addDays(base, 1), 'dinner'))?.assignmentType).toBe('foodbank')
     })
   })
 })

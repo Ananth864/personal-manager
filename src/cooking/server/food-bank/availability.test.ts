@@ -22,29 +22,31 @@ describe('food bank availability', () => {
   describe('computePlannedProductions', () => {
     const servingsFor = (id: string) => (id === 'r1' ? 4 : id === 'r2' ? 1 : undefined)
     const weekStart = '2030-01-07' // a Monday
+    const horizonEnd = '2030-01-21' // current + next week (exclusive)
 
-    it('projects servings − 1 for each planned cook in the current/future week', () => {
+    it('projects servings − 1 for each planned cook in the plannable horizon', () => {
       const cooks: PlannedCook[] = [
         { recipeId: 'r1', slotDate: '2030-01-08', assignmentType: 'recipe', adhocServings: null },
       ]
-      expect(computePlannedProductions(cooks, servingsFor, weekStart)).toEqual([
+      expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([
         { recipeId: 'r1', portions: 3 },
       ])
     })
 
-    it('skips past-week and single-serving (zero-leftover) cooks', () => {
+    it('skips past-week, beyond-horizon, and single-serving (zero-remaining) cooks', () => {
       const cooks: PlannedCook[] = [
         { recipeId: 'r1', slotDate: '2019-01-01', assignmentType: 'recipe', adhocServings: null }, // past
+        { recipeId: 'r1', slotDate: '2030-02-04', assignmentType: 'recipe', adhocServings: null }, // beyond next week
         { recipeId: 'r2', slotDate: '2030-01-09', assignmentType: 'recipe', adhocServings: null }, // servings 1 -> 0
       ]
-      expect(computePlannedProductions(cooks, servingsFor, weekStart)).toEqual([])
+      expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([])
     })
 
     it('projects the ad-hoc pool from ad-hoc servings', () => {
       const cooks: PlannedCook[] = [
         { recipeId: null, slotDate: '2030-01-08', assignmentType: 'adhoc', adhocServings: 3 },
       ]
-      expect(computePlannedProductions(cooks, servingsFor, weekStart)).toEqual([
+      expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([
         { recipeId: null, portions: 2 },
       ])
     })
@@ -92,7 +94,7 @@ describe('food bank availability', () => {
       expect(summary[0]).toMatchObject({ recipeName: 'Chili', produced: 10, available: 8 })
     })
 
-    it('lets a planned cook make its future leftovers reservable (the agent case)', () => {
+    it('lets a planned cook make its future portions reservable (the agent case)', () => {
       // Nothing cooked yet (produced 0), but a planned Chili cook (4 servings)
       // projects 3 portions — so 2 can be reserved and 1 still shows available.
       const planned: ProducedPortion[] = [{ recipeId: 'r1', portions: 3 }]

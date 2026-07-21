@@ -29,7 +29,7 @@ import {
 import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
 import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/server/food-bank/availability'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
-import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
+import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
 
 const stateSchema = z.enum(['endless', 'tracked', 'unavailable'])
@@ -296,10 +296,12 @@ export const trpcRouter = createTRPCRouter({
         recipeRepoFor(ctx).list(),
       ])
       const servingsById = new Map(recipes.map((r) => [r.id, r.servings]))
+      const weekStart = mondayOfWeek(todayISO())
       const planned = computePlannedProductions(
         plannedCooks,
         (id) => servingsById.get(id),
-        mondayOfWeek(todayISO()),
+        weekStart,
+        addDays(weekStart, 14),
       )
       const nameById = new Map(recipes.map((r) => [r.id, r.name]))
       return buildFoodBankSummary(produced, planned, reservations, (id) =>

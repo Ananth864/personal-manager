@@ -55,11 +55,12 @@ A Meal Slot marker indicating no cooking occurs for that slot — no Recipe, no 
 _Avoid_: eating out, skip, off
 
 **Cook**:
-A logged event that consumes ingredients and produces prepared food. Each Tracked Ingredient required by the Recipe or Ad-hoc Recipe is decremented by its required quantity (Tracked → Unavailable at zero); Endless ingredients are unaffected. Adds the recipe's `servings` worth of food to the Food Bank. Cook is the only thing that mutates Tracked Inventory or produces Food Bank portions.
+A logged event that consumes ingredients and produces prepared food. Each Tracked Ingredient required by the Recipe or Ad-hoc Recipe is decremented by its required quantity (Tracked → Unavailable at zero); Endless ingredients are unaffected. The slot being cooked eats one of the portions; the remaining `servings − 1` (clamped at zero) are added to the Food Bank. Cook is the only thing that mutates Tracked Inventory or produces real Food Bank portions.
 _Avoid_: prepare, make
 
 **Food Bank**:
-The pool of prepared portions from past Cooks, available to be reserved by a Meal Slot. Reserving a portion at plan time reduces availability; clearing the slot releases it; when a Week archives, its reservations become permanent consumption. Tracked per Recipe (commingled across Cooks of the same Recipe). Reserving has no effect on Ingredient Inventory — ingredients were consumed at Cook time.
+The pool of prepared portions available to be reserved by a Meal Slot. Reserving a portion at plan time reduces availability; clearing the slot releases it; when a Week archives, its reservations become permanent consumption. Tracked per Recipe (commingled across Cooks of the same Recipe). Reserving has no effect on Ingredient Inventory — ingredients were consumed at Cook time.
+Availability has three terms: `produced` (from past Cooks), `planned` (projected from uncooked recipe/ad-hoc slots within the plannable horizon — current and next Week), and `reserved` (Food Bank withdrawal slots). The `planned` term lets a plan reserve the future portions of a meal cooked earlier in the week; when that Cook fires, its portions move from `planned` to `produced`.
 _Avoid_: leftovers, prep bank, cooked bank
 
 ### Derived Views
