@@ -124,15 +124,25 @@ describe('cook', () => {
     expect(after?.quantity).toBe(0)
   })
 
-  it('produces the recipe servings worth of Food Bank portions', async () => {
-    const egg = await tracked('Egg', 12)
-    const recipeId = await recipeWith('Quiche', 6, [{ ingredient: egg, quantity: 3 }])
-    await schedule.upsertSlot({ slotDate: DATE, meal: 'dinner', assignmentType: 'recipe', recipeId })
+    it('banks servings − 1 portions (the cooking slot eats one)', async () => {
+      const egg = await tracked('Egg', 12)
+      const recipeId = await recipeWith('Quiche', 6, [{ ingredient: egg, quantity: 3 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'dinner', assignmentType: 'recipe', recipeId })
 
-    const result = await cookSlot(DATE, 'dinner')
-    expect(result.produced).toBe(6)
-    expect(foodBank.portionsFor(recipeId)).toBe(6)
-  })
+      const result = await cookSlot(DATE, 'dinner')
+      expect(result.produced).toBe(5)
+      expect(foodBank.portionsFor(recipeId)).toBe(5)
+    })
+
+    it('banks nothing for a single-serving recipe (the slot eats the only portion)', async () => {
+      const egg = await tracked('Egg', 12)
+      const recipeId = await recipeWith('Solo', 1, [{ ingredient: egg, quantity: 1 }])
+      await schedule.upsertSlot({ slotDate: DATE, meal: 'dinner', assignmentType: 'recipe', recipeId })
+
+      const result = await cookSlot(DATE, 'dinner')
+      expect(result.produced).toBe(0)
+      expect(foodBank.portionsFor(recipeId)).toBe(0)
+    })
 
   it('commingles portions across multiple cooks of the same recipe', async () => {
     const egg = await tracked('Egg', 24)
@@ -140,11 +150,11 @@ describe('cook', () => {
     await schedule.upsertSlot({ slotDate: '2025-01-01', meal: 'dinner', assignmentType: 'recipe', recipeId })
     await schedule.upsertSlot({ slotDate: '2025-01-02', meal: 'dinner', assignmentType: 'recipe', recipeId })
 
-    await cook(schedule, inventory, foodBank, recipes, '2025-01-01', 'dinner')
-    await cook(schedule, inventory, foodBank, recipes, '2025-01-02', 'dinner')
+      await cook(schedule, inventory, foodBank, recipes, '2025-01-01', 'dinner')
+      await cook(schedule, inventory, foodBank, recipes, '2025-01-02', 'dinner')
 
-    expect(foodBank.portionsFor(recipeId)).toBe(12)
-  })
+      expect(foodBank.portionsFor(recipeId)).toBe(10)
+    })
 
   it('cooks an Ad-hoc slot: decrements and produces servings into the ad-hoc pool', async () => {
     const bread = await tracked('Bread', 4)
@@ -158,9 +168,9 @@ describe('cook', () => {
     })
 
     const result = await cookSlot(DATE, 'lunch')
-    expect(result.produced).toBe(2)
+    expect(result.produced).toBe(1)
     expect((await inventory.get(bread.id))?.quantity).toBe(2)
-    expect(foodBank.portionsFor(null)).toBe(2) // commingled ad-hoc pool
+    expect(foodBank.portionsFor(null)).toBe(1) // ad-hoc pool (servings 2 − 1 eaten)
   })
 
   it('blocks a second Cook on the same slot (one Cook per slot)', async () => {

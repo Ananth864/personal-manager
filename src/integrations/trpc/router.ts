@@ -247,7 +247,7 @@ export const trpcRouter = createTRPCRouter({
               unit: i.ingredient.unit,
             })),
             inventory,
-            recipe.servings,
+            Math.max(0, recipe.servings - 1),
           )
         }
         if (slot.assignmentType === 'adhoc') {
@@ -263,7 +263,7 @@ export const trpcRouter = createTRPCRouter({
               }
             }),
             inventory,
-            slot.adhocServings ?? 1,
+            Math.max(0, (slot.adhocServings ?? 1) - 1),
           )
         }
         return null

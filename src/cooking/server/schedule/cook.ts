@@ -81,10 +81,10 @@ export function buildCookPreview(
  * operation that mutates Tracked Ingredient Inventory and the one that produces
  * Food Bank portions. Warn-only — never blocks, never goes negative.
  *
- * - Recipe slots: decrement ingredients, add `servings` portions to the Food
- *   Bank (commingled per recipe).
- * - Ad-hoc slots: decrement ingredients, add `adhocServings` portions to the
- *   commingled ad-hoc pool (null recipe id).
+ * - Recipe slots: decrement ingredients, bank `servings − 1` portions (the
+ *   cooking slot eats one of the portions it just prepared).
+ * - Ad-hoc slots: decrement ingredients, bank `adhocServings − 1` portions into
+ *   the commingled ad-hoc pool (null recipe id).
  *
  * One Cook per slot is enforced by an atomic conditional claim (`claimForCook`)
  * BEFORE any decrement or portion write — two concurrent Cooks can't both
@@ -118,14 +118,15 @@ export async function cook(
       ingredientId: i.ingredient.id,
       quantity: i.quantity,
     }))
-    portionsToProduce = recipe.servings
+    portionsToProduce = Math.max(0, recipe.servings - 1)
     bankKey = slot.recipeId
   } else if (slot.assignmentType === 'adhoc') {
     lines = (slot.adhocIngredients ?? []).map((a) => ({
       ingredientId: a.ingredientId,
       quantity: a.quantity,
     }))
-    portionsToProduce = slot.adhocServings ?? 1
+    // The cooking slot eats one portion; the rest go to the Food Bank.
+    portionsToProduce = Math.max(0, (slot.adhocServings ?? 1) - 1)
     bankKey = null // the commingled ad-hoc pool
   } else {
     throw new Error('Only fresh-cook slots (Recipe or Ad-hoc) can be cooked.')
