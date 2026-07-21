@@ -1,6 +1,7 @@
 import type { PlannedCook } from '../food-bank/availability'
 import type { RecipeDetail } from '../recipes/types'
 import type { InventoryItem, Unit } from '../inventory/types'
+import { resolveRequiredLines } from '../schedule/service'
 
 export interface ShoppingListItem {
   ingredientId: string
@@ -12,22 +13,6 @@ export interface ShoppingListItem {
   have: number
   /** `needed − have`, floored at 0 — the amount to buy. */
   buy: number
-}
-
-/** Resolve a planned cook's required ingredient lines (recipe catalog or ad-hoc). */
-function cookLines(
-  cook: PlannedCook,
-  recipeById: Map<string, RecipeDetail>,
-): { ingredientId: string; quantity: number }[] | null {
-  if (cook.assignmentType === 'recipe') {
-    const r = cook.recipeId ? recipeById.get(cook.recipeId) : undefined
-    if (!r) return null
-    return r.ingredients.map((i) => ({ ingredientId: i.ingredient.id, quantity: i.quantity }))
-  }
-  return (cook.adhocIngredients ?? []).map((a) => ({
-    ingredientId: a.ingredientId,
-    quantity: a.quantity,
-  }))
 }
 
 /**
@@ -75,7 +60,7 @@ export function buildShoppingList(
   const needed = new Map<string, number>()
   for (const cook of plannedCooks) {
     if (cook.slotDate < today || cook.slotDate >= horizonEnd) continue
-    const lines = cookLines(cook, recipeById)
+    const lines = resolveRequiredLines(cook, recipeById)
     if (!lines) continue
     for (const line of lines) {
       needed.set(line.ingredientId, (needed.get(line.ingredientId) ?? 0) + line.quantity)

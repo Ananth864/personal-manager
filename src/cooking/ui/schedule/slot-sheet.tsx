@@ -110,12 +110,9 @@ export function SlotSheet({
     trpc.schedule.cook.mutationOptions({
       onSuccess: () => {
         // Cook mutates Inventory, produces Food Bank portions, marks the slot
-        // cooked (removing it from the planned set), and consumes ingredients —
-        // refresh all four views.
-        queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+        // cooked (removing it from the planned set), and consumes ingredients.
+        invalidate()
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
-        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
-        queryClient.invalidateQueries({ queryKey: trpc.shoppingList.list.queryKey() })
         onOpenChange(false)
       },
     }),
@@ -134,11 +131,9 @@ export function SlotSheet({
       onSuccess: () => {
         // Uncook restores Inventory, reverses Food Bank production, releases the
         // cooked flag (re-adding the slot to the planned set), and un-consumes
-        // ingredients — refresh all four views.
-        queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+        // ingredients.
+        invalidate()
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
-        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
-        queryClient.invalidateQueries({ queryKey: trpc.shoppingList.list.queryKey() })
         onOpenChange(false)
       },
     }),

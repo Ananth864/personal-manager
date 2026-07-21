@@ -153,17 +153,4 @@ describe('buildShoppingList', () => {
     expect(list).toHaveLength(1)
     expect(list[0]).toMatchObject({ ingredientId: 'egg', needed: 2 })
   })
-
-  it('does not include Food Bank withdrawal slots (only recipe/adhoc cooks feed it)', () => {
-    // plannedCooks only ever contains recipe/adhoc (foodbank slots are excluded
-    // upstream by listPlannedCooks); verify a recipe cook still works alongside.
-    const list = buildShoppingList(
-      [cook(TODAY, 'r1')],
-      [recipe('r1', [{ ingredientId: 'egg', quantity: 2 }])],
-      [],
-      TODAY,
-      HORIZON,
-    )
-    expect(list.map((i) => i.ingredientId)).toEqual(['egg'])
-  })
 })

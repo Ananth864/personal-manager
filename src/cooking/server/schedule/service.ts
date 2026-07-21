@@ -81,21 +81,30 @@ function toAssignment(
   return { type: row.assignmentType }
 }
 
-/** Resolve a slot's required ingredient lines, or null when there's nothing to check. */
-function requiredLines(
-  row: SlotRow,
+/**
+ * Resolve a slot's required ingredient lines (the shared slice both `SlotRow`
+ * and `PlannedCook` satisfy). Recipe slots resolve via the catalog; ad-hoc slots
+ * carry their lines; everything else (No Cook, Food Bank) returns null. Shared
+ * by the Schedule shortfall projection and the Shopping List (T07).
+ */
+export function resolveRequiredLines(
+  slot: {
+    recipeId: string | null
+    assignmentType: string
+    adhocIngredients: AdhocIngredient[] | null
+  },
   recipeById: Map<string, RecipeDetail>,
 ): { ingredientId: string; quantity: number }[] | null {
-  if (row.assignmentType === 'recipe') {
-    const r = row.recipeId ? recipeById.get(row.recipeId) : undefined
+  if (slot.assignmentType === 'recipe') {
+    const r = slot.recipeId ? recipeById.get(slot.recipeId) : undefined
     if (!r) return null
     return r.ingredients.map((i) => ({
       ingredientId: i.ingredient.id,
       quantity: i.quantity,
     }))
   }
-  if (row.assignmentType === 'adhoc') {
-    return (row.adhocIngredients ?? []).map((a) => ({
+  if (slot.assignmentType === 'adhoc') {
+    return (slot.adhocIngredients ?? []).map((a) => ({
       ingredientId: a.ingredientId,
       quantity: a.quantity,
     }))
@@ -127,7 +136,7 @@ function projectShortfall(
   simulate: boolean,
 ): number | null {
   if (!simulate || row.cooked) return null
-  const lines = requiredLines(row, recipeById)
+  const lines = resolveRequiredLines(row, recipeById)
   if (lines === null) return null
   let missing = 0
   for (const line of lines) {
