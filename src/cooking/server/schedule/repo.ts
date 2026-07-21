@@ -1,5 +1,6 @@
 import { addDays } from '../../schedule/date-utils'
 import type {
+  AdhocIngredient,
   MealPosition,
   SlotRow,
   UpsertSlotInput,
@@ -21,7 +22,7 @@ export interface ScheduleRepo {
    * portions can be projected into Food Bank availability.
    */
   listPlannedCooks: () => Promise<
-    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]
+    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null; adhocIngredients: AdhocIngredient[] | null }[]
   >
   /** A single slot, or null if the slot is unassigned. */
   getSlot: (slotDate: string, meal: MealPosition) => Promise<SlotRow | null>
@@ -77,7 +78,7 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
   }
 
   async listPlannedCooks(): Promise<
-    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]
+    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null; adhocIngredients: AdhocIngredient[] | null }[]
   > {
     return [...this.slots.values()]
       .filter(
@@ -88,6 +89,7 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
         slotDate: s.slotDate,
         assignmentType: s.assignmentType as 'recipe' | 'adhoc',
         adhocServings: s.adhocServings,
+        adhocIngredients: s.adhocIngredients,
       }))
   }
 

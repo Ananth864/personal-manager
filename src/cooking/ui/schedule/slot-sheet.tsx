@@ -68,8 +68,10 @@ export function SlotSheet({
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
     // assignRecipe/assignAdhoc/markNoCook/clearSlot all change the planned-cook
-    // set that feeds the Food Bank's projected availability, so refresh it too.
+    // set feeding the Food Bank's projected availability and the Shopping List,
+    // so refresh both too.
     queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+    queryClient.invalidateQueries({ queryKey: trpc.shoppingList.list.queryKey() })
   }
 
   const assignRecipeMut = useMutation(
@@ -107,11 +109,13 @@ export function SlotSheet({
   const cookMut = useMutation(
     trpc.schedule.cook.mutationOptions({
       onSuccess: () => {
-        // Cook mutates Inventory, produces Food Bank portions, and marks the
-        // slot cooked — refresh all three views.
+        // Cook mutates Inventory, produces Food Bank portions, marks the slot
+        // cooked (removing it from the planned set), and consumes ingredients —
+        // refresh all four views.
         queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
         queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.shoppingList.list.queryKey() })
         onOpenChange(false)
       },
     }),
@@ -128,11 +132,13 @@ export function SlotSheet({
   const uncookMut = useMutation(
     trpc.schedule.uncook.mutationOptions({
       onSuccess: () => {
-        // Uncook restores Inventory, reverses Food Bank production, and
-        // releases the cooked flag — refresh all three views.
+        // Uncook restores Inventory, reverses Food Bank production, releases the
+        // cooked flag (re-adding the slot to the planned set), and un-consumes
+        // ingredients — refresh all four views.
         queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
         queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.shoppingList.list.queryKey() })
         onOpenChange(false)
       },
     }),

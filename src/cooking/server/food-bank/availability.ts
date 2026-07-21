@@ -1,3 +1,5 @@
+import type { AdhocIngredient } from '../schedule/types'
+
 /**
  * Food Bank availability (CONTEXT.md → Food Bank; ADR-0002 / ADR-0006).
  *
@@ -35,6 +37,12 @@ export interface PlannedCook {
   slotDate: string
   assignmentType: 'recipe' | 'adhoc'
   adhocServings: number | null
+  /**
+   * The ad-hoc slot's ingredient lines (null for recipe slots). Carried so the
+   * Shopping List (T07) can resolve ad-hoc requirements from the same query the
+   * Food Bank projection uses; the Food Bank ignores this field.
+   */
+  adhocIngredients: AdhocIngredient[] | null
 }
 
 export interface FoodBankEntry {

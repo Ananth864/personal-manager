@@ -109,11 +109,11 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
   }
 
   async listPlannedCooks(): Promise<
-    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]
+    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null; adhocIngredients: AdhocIngredient[] | null }[]
   > {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
-      .select('recipe_id, slot_date, assignment_type, adhoc_servings')
+      .select('recipe_id, slot_date, assignment_type, adhoc_servings, adhoc_ingredients')
       .in('assignment_type', ['recipe', 'adhoc'])
       .eq('cooked', false)
     if (error) {
@@ -125,12 +125,14 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
         slot_date: string
         assignment_type: 'recipe' | 'adhoc'
         adhoc_servings: number | null
+        adhoc_ingredients: AdhocIngredient[] | null
       }[]
     ).map((r) => ({
       recipeId: r.recipe_id,
       slotDate: r.slot_date,
       assignmentType: r.assignment_type,
       adhocServings: r.adhoc_servings,
+      adhocIngredients: r.adhoc_ingredients,
     }))
   }
 

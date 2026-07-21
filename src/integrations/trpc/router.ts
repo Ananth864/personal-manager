@@ -31,6 +31,7 @@ import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/serve
 import { discardPortions } from '#/cooking/server/food-bank/service'
 import { SupabaseIngredientLedgerRepo } from '#/cooking/server/inventory/ledger-supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
+import { buildShoppingList } from '#/cooking/server/shopping-list/shopping-list'
 import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
 
@@ -340,6 +341,20 @@ export const trpcRouter = createTRPCRouter({
           input.count,
         )
       }),
+  }),
+
+  shoppingList: createTRPCRouter({
+    // Derived (not stored): aggregates shortfalls across planned fresh cooks
+    // in the plannable horizon (current + next week, today onward).
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const [plannedCooks, recipes, inventory] = await Promise.all([
+        scheduleRepoFor(ctx).listPlannedCooks(),
+        recipeRepoFor(ctx).list(),
+        inventoryFor(ctx),
+      ])
+      const weekStart = mondayOfWeek(todayISO())
+      return buildShoppingList(plannedCooks, recipes, inventory, todayISO(), addDays(weekStart, 14))
+    }),
   }),
 })
 export type TRPCRouter = typeof trpcRouter

@@ -7,6 +7,7 @@ import { ErrorState, LoadingState } from '../shared-states'
 import { FoodBankStrip } from './food-bank-strip'
 import { ShortfallFlag } from './shortfall-flag'
 import { SlotSheet } from './slot-sheet'
+import { ShoppingListDrawer } from './shopping-list-drawer'
 import {
   addDays,
   currentWeekStart,
@@ -65,6 +66,7 @@ export function SchedulePage() {
             {week?.readonly ? 'Browsing a past week — read only.' : 'Plan your week, one meal at a time.'}
           </p>
         </div>
+        <ShoppingListDrawer />
       </header>
 
       <div className="flex items-center justify-between gap-2">

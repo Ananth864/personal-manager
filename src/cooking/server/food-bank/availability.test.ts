@@ -26,7 +26,7 @@ describe('food bank availability', () => {
 
     it('projects servings − 1 for each planned cook in the plannable horizon', () => {
       const cooks: PlannedCook[] = [
-        { recipeId: 'r1', slotDate: '2030-01-08', assignmentType: 'recipe', adhocServings: null },
+        { recipeId: 'r1', slotDate: '2030-01-08', assignmentType: 'recipe', adhocServings: null, adhocIngredients: null },
       ]
       expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([
         { recipeId: 'r1', portions: 3 },
@@ -35,16 +35,16 @@ describe('food bank availability', () => {
 
     it('skips past-week, beyond-horizon, and single-serving (zero-remaining) cooks', () => {
       const cooks: PlannedCook[] = [
-        { recipeId: 'r1', slotDate: '2019-01-01', assignmentType: 'recipe', adhocServings: null }, // past
-        { recipeId: 'r1', slotDate: '2030-02-04', assignmentType: 'recipe', adhocServings: null }, // beyond next week
-        { recipeId: 'r2', slotDate: '2030-01-09', assignmentType: 'recipe', adhocServings: null }, // servings 1 -> 0
+        { recipeId: 'r1', slotDate: '2019-01-01', assignmentType: 'recipe', adhocServings: null, adhocIngredients: null }, // past
+        { recipeId: 'r1', slotDate: '2030-02-04', assignmentType: 'recipe', adhocServings: null, adhocIngredients: null }, // beyond next week
+        { recipeId: 'r2', slotDate: '2030-01-09', assignmentType: 'recipe', adhocServings: null, adhocIngredients: null }, // servings 1 -> 0
       ]
       expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([])
     })
 
     it('projects the ad-hoc pool from ad-hoc servings', () => {
       const cooks: PlannedCook[] = [
-        { recipeId: null, slotDate: '2030-01-08', assignmentType: 'adhoc', adhocServings: 3 },
+        { recipeId: null, slotDate: '2030-01-08', assignmentType: 'adhoc', adhocServings: 3, adhocIngredients: null },
       ]
       expect(computePlannedProductions(cooks, servingsFor, weekStart, horizonEnd)).toEqual([
         { recipeId: null, portions: 2 },
