@@ -24,4 +24,17 @@ export class SupabaseFoodBankRepo implements FoodBankRepo {
       throw new Error(`Failed to add Food Bank portions: ${error.message}`)
     }
   }
+
+  async listProduced(): Promise<{ recipeId: string | null; portions: number }[]> {
+    const { data, error } = await this.client
+      .from('cooking_food_bank')
+      .select('recipe_id, portions')
+    if (error) {
+      throw new Error(`Failed to read Food Bank: ${error.message}`)
+    }
+    return (data as { recipe_id: string | null; portions: number }[]).map((r) => ({
+      recipeId: r.recipe_id,
+      portions: r.portions,
+    }))
+  }
 }

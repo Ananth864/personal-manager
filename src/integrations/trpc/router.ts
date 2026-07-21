@@ -20,12 +20,14 @@ import {
 import { SupabaseScheduleRepo } from '#/cooking/server/schedule/supabase-repo'
 import {
   assignAdhoc,
+  assignFoodBank,
   assignRecipe,
   buildWeek,
   clearSlot,
   markNoCook,
 } from '#/cooking/server/schedule/service'
 import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
+import { buildFoodBankSummary } from '#/cooking/server/food-bank/availability'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import type { Context } from './init'
 
@@ -205,6 +207,24 @@ export const trpcRouter = createTRPCRouter({
         clearSlot(scheduleRepoFor(ctx), input.date, input.meal),
       ),
 
+    assignFoodBank: protectedProcedure
+      .input(
+        z.object({
+          date: z.string(),
+          meal: z.enum(['lunch', 'dinner']),
+          recipeId: z.string().nullable(),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        assignFoodBank(
+          scheduleRepoFor(ctx),
+          foodBankRepoFor(ctx),
+          input.date,
+          input.meal,
+          input.recipeId,
+        ),
+      ),
+
     previewCook: protectedProcedure
       .input(
         z.object({ date: z.string(), meal: z.enum(['lunch', 'dinner']) }),
@@ -263,6 +283,20 @@ export const trpcRouter = createTRPCRouter({
           input.meal,
         ),
       ),
+  }),
+
+  foodBank: createTRPCRouter({
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      const [produced, reservations, recipes] = await Promise.all([
+        foodBankRepoFor(ctx).listProduced(),
+        scheduleRepoFor(ctx).listFoodBankSlots(),
+        recipeRepoFor(ctx).list(),
+      ])
+      const nameById = new Map(recipes.map((r) => [r.id, r.name]))
+      return buildFoodBankSummary(produced, reservations, (id) =>
+        id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
+      )
+    }),
   }),
 })
 export type TRPCRouter = typeof trpcRouter

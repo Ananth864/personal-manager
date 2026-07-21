@@ -14,6 +14,8 @@ import type {
 export interface ScheduleRepo {
   /** All assigned slots in the week [weekStart, weekStart+6]. */
   listSlots: (weekStart: string) => Promise<SlotRow[]>
+  /** All Food Bank reservation slots (every week), for availability derivation. */
+  listFoodBankSlots: () => Promise<{ recipeId: string | null; slotDate: string }[]>
   /** A single slot, or null if the slot is unassigned. */
   getSlot: (slotDate: string, meal: MealPosition) => Promise<SlotRow | null>
   upsertSlot: (input: UpsertSlotInput) => Promise<void>
@@ -48,6 +50,12 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
 
   async getSlot(slotDate: string, meal: MealPosition): Promise<SlotRow | null> {
     return this.slots.get(this.key(slotDate, meal)) ?? null
+  }
+
+  async listFoodBankSlots(): Promise<{ recipeId: string | null; slotDate: string }[]> {
+    return [...this.slots.values()]
+      .filter((s) => s.assignmentType === 'foodbank')
+      .map((s) => ({ recipeId: s.recipeId, slotDate: s.slotDate }))
   }
 
   async upsertSlot(input: UpsertSlotInput): Promise<void> {

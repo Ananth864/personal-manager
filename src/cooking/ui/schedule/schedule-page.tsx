@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { useTRPC } from '#/integrations/trpc/react'
 import { ErrorState, LoadingState } from '../shared-states'
+import { FoodBankStrip } from './food-bank-strip'
 import { ShortfallFlag } from './shortfall-flag'
 import { SlotSheet } from './slot-sheet'
 import {
@@ -53,6 +54,8 @@ export function SchedulePage() {
 
   return (
     <div className="space-y-5">
+      <FoodBankStrip />
+
       <header className="flex items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">
@@ -210,5 +213,10 @@ function SlotContent({ assignment }: { assignment: SlotAssignment | null }) {
   if (assignment.type === 'nocook') {
     return <span className="text-sm italic text-muted-foreground">No cook</span>
   }
-  return <span className="text-sm text-muted-foreground">From the Food Bank</span>
+  return (
+    <span className="truncate text-sm font-medium">
+      {assignment.recipeName ? `${assignment.recipeName}` : 'Ad-hoc portion'}
+      <span className="font-normal text-muted-foreground"> · leftover</span>
+    </span>
+  )
 }

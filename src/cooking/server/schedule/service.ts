@@ -1,7 +1,9 @@
 import type { InventoryItem } from '../inventory/types'
 import type { RecipeDetail } from '../recipes/types'
+import type { FoodBankRepo } from '../food-bank/repo'
+import { availableFor } from '../food-bank/availability'
 import type { ScheduleRepo } from './repo'
-import { isPastWeek, todayISO, weekDays } from '../../schedule/date-utils'
+import { isPastWeek, mondayOfWeek, todayISO, weekDays } from '../../schedule/date-utils'
 import type {
   AdhocIngredient,
   DayPlan,
@@ -65,6 +67,14 @@ function toAssignment(
       type: 'adhoc',
       adhocName: row.adhocName,
       adhocIngredients: row.adhocIngredients ?? [],
+    }
+  }
+  if (row.assignmentType === 'foodbank') {
+    const r = row.recipeId ? recipeById.get(row.recipeId) : undefined
+    return {
+      type: 'foodbank',
+      recipeId: row.recipeId ?? undefined,
+      recipeName: r?.name ?? null,
     }
   }
   return { type: row.assignmentType }
@@ -246,5 +256,37 @@ export async function clearSlot(
   meal: MealPosition,
 ): Promise<void> {
   validateSlotKey(slotDate)
+  // Past weeks are read-only archives — clearing is blocked so an archived Food
+  // Bank reservation can't be released (ADR-0006: archive locks reservations).
+  if (slotDate < mondayOfWeek(todayISO())) {
+    throw new Error("Can't clear a slot in a past week — past weeks are read-only.")
+  }
   return repo.clearSlot(slotDate, meal)
+}
+
+/**
+ * Reserve a Food Bank portion into a slot (CONTEXT.md → Food Bank; ADR-0006).
+ * Reduces availability; clearing the slot releases it. No Inventory effect —
+ * ingredients were consumed at Cook time. Blocks when nothing is available.
+ */
+export async function assignFoodBank(
+  repo: ScheduleRepo,
+  foodBankRepo: FoodBankRepo,
+  slotDate: string,
+  meal: MealPosition,
+  recipeId: string | null,
+): Promise<void> {
+  validateSlotKey(slotDate)
+  const [produced, reservations] = await Promise.all([
+    foodBankRepo.listProduced(),
+    repo.listFoodBankSlots(),
+  ])
+  const producedFor = produced
+    .filter((p) => p.recipeId === recipeId)
+    .reduce((sum, p) => sum + p.portions, 0)
+  const reservedFor = reservations.filter((r) => r.recipeId === recipeId).length
+  if (availableFor(producedFor, reservedFor) <= 0) {
+    throw new Error('No portions available in the Food Bank for that recipe.')
+  }
+  await repo.upsertSlot({ slotDate, meal, assignmentType: 'foodbank', recipeId })
 }

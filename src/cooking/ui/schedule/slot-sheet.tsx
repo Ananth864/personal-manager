@@ -21,7 +21,7 @@ import { dayLabel } from '#/cooking/schedule/date-utils'
 import type { MealSlot } from '#/cooking/server/schedule/types'
 import type { CookPreview } from '#/cooking/server/schedule/cook'
 
-type Mode = 'menu' | 'recipe' | 'adhoc' | 'cook'
+type Mode = 'menu' | 'recipe' | 'adhoc' | 'cook' | 'foodbank'
 
 export function SlotSheet({
   slot,
@@ -111,6 +111,15 @@ export function SlotSheet({
       },
     }),
   )
+  const assignFoodBankMut = useMutation(
+    trpc.schedule.assignFoodBank.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
+        onOpenChange(false)
+      },
+    }),
+  )
 
   if (!slot) {
     return (
@@ -126,13 +135,15 @@ export function SlotSheet({
     assignAdhocMut.isPending ||
     markNoCookMut.isPending ||
     clearMut.isPending ||
-    cookMut.isPending
+    cookMut.isPending ||
+    assignFoodBankMut.isPending
   const errorMessage =
     assignRecipeMut.error?.message ??
     assignAdhocMut.error?.message ??
     markNoCookMut.error?.message ??
     clearMut.error?.message ??
-    cookMut.error?.message
+    cookMut.error?.message ??
+    assignFoodBankMut.error?.message
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -143,6 +154,7 @@ export function SlotSheet({
             {mode === 'recipe' && 'Choose a recipe'}
             {mode === 'adhoc' && 'Ad-hoc recipe'}
             {mode === 'cook' && 'Cook meal'}
+            {mode === 'foodbank' && 'From the Food Bank'}
           </SheetTitle>
           <SheetDescription className="capitalize">
             {mode === 'menu' && (
@@ -170,6 +182,7 @@ export function SlotSheet({
             onCook={() => setMode('cook')}
             onRecipe={() => setMode('recipe')}
             onAdhoc={() => setMode('adhoc')}
+            onFoodBank={() => setMode('foodbank')}
             onNoCook={() =>
               markNoCookMut.mutate({ date: slot.date, meal: slot.meal })
             }
@@ -225,6 +238,19 @@ export function SlotSheet({
           />
         )}
 
+        {mode === 'foodbank' && (
+          <FoodBankPicker
+            pending={assignFoodBankMut.isPending}
+            onPick={(recipeId) =>
+              assignFoodBankMut.mutate({
+                date: slot.date,
+                meal: slot.meal,
+                recipeId,
+              })
+            }
+          />
+        )}
+
         {errorMessage && (
           <p className="text-sm text-destructive" role="alert">
             {errorMessage}
@@ -241,7 +267,7 @@ function summary(slot: MealSlot): string {
   if (a.type === 'recipe') return a.recipeName ?? 'Recipe'
   if (a.type === 'adhoc') return a.adhocName?.trim() ? a.adhocName : 'Ad-hoc recipe'
   if (a.type === 'nocook') return 'No cook'
-  return 'Food Bank'
+  return a.recipeName ? `${a.recipeName} (Food Bank)` : 'Food Bank'
 }
 
 function Menu({
@@ -250,6 +276,7 @@ function Menu({
   onCook,
   onRecipe,
   onAdhoc,
+  onFoodBank,
   onNoCook,
   onClear,
 }: {
@@ -258,6 +285,7 @@ function Menu({
   onCook: () => void
   onRecipe: () => void
   onAdhoc: () => void
+  onFoodBank: () => void
   onNoCook: () => void
   onClear: () => void
 }) {
@@ -279,15 +307,16 @@ function Menu({
       <MenuButton label="Assign a recipe" hint="From your catalog" onClick={onRecipe} disabled={pending} />
       <MenuButton label="Add an ad-hoc recipe" hint="A one-off ingredient list" onClick={onAdhoc} disabled={pending} />
       <MenuButton
+        label="From the Food Bank"
+        hint="Reserve a prepared portion"
+        onClick={onFoodBank}
+        disabled={pending}
+      />
+      <MenuButton
         label="Mark as No Cook"
         hint="Eating out, skipping, fasting"
         onClick={onNoCook}
         disabled={pending || slot.assignment?.type === 'nocook'}
-      />
-      <MenuButton
-        label="From the Food Bank"
-        hint="Coming in a later update"
-        disabled
       />
       {assigned && (
         <MenuButton
@@ -542,5 +571,47 @@ function CookConfirm({
         {pending ? 'Cooking…' : 'Confirm cook'}
       </Button>
     </div>
+  )
+}
+
+function FoodBankPicker({
+  pending,
+  onPick,
+}: {
+  pending: boolean
+  onPick: (recipeId: string | null) => void
+}) {
+  const trpc = useTRPC()
+  const query = useQuery(trpc.foodBank.summary.queryOptions())
+  const entries = (query.data ?? []).filter((e) => e.available > 0)
+
+  if (query.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading the Food Bank…</p>
+  }
+  if (entries.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+        No portions in the Food Bank yet. Cook a recipe first.
+      </p>
+    )
+  }
+  return (
+    <ul className="flex flex-1 flex-col gap-2 overflow-y-auto">
+      {entries.map((e) => (
+        <li key={e.recipeId ?? '__adhoc__'}>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onPick(e.recipeId)}
+            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            <span className="text-sm font-medium">{e.recipeName}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              ×{e.available} available
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }

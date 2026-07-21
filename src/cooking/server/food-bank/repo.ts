@@ -9,6 +9,8 @@
  */
 export interface FoodBankRepo {
   addPortions: (recipeId: string | null, portions: number) => Promise<void>
+  /** The produced-portions ledger (one row per recipe, including the ad-hoc pool). */
+  listProduced: () => Promise<{ recipeId: string | null; portions: number }[]>
 }
 
 /** In-memory implementation used by the Cook service-layer tests. */
@@ -20,6 +22,13 @@ export class InMemoryFoodBankRepo implements FoodBankRepo {
     if (portions <= 0) return
     const key = recipeId ?? InMemoryFoodBankRepo.ADHOC_KEY
     this.portions.set(key, (this.portions.get(key) ?? 0) + portions)
+  }
+
+  async listProduced(): Promise<{ recipeId: string | null; portions: number }[]> {
+    return [...this.portions.entries()].map(([key, portions]) => ({
+      recipeId: key === InMemoryFoodBankRepo.ADHOC_KEY ? null : key,
+      portions,
+    }))
   }
 
   /** Test-only accessor (null recipeId reads the ad-hoc pool). */

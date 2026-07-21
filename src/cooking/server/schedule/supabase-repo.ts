@@ -92,6 +92,20 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     return data ? toSlotRow(data) : null
   }
 
+  async listFoodBankSlots(): Promise<{ recipeId: string | null; slotDate: string }[]> {
+    const { data, error } = await this.client
+      .from('cooking_meal_slots')
+      .select('recipe_id, slot_date')
+      .eq('assignment_type', 'foodbank')
+    if (error) {
+      throw new Error(`Failed to read Food Bank reservations: ${error.message}`)
+    }
+    return (data as { recipe_id: string | null; slot_date: string }[]).map((r) => ({
+      recipeId: r.recipe_id,
+      slotDate: r.slot_date,
+    }))
+  }
+
   async upsertSlot(input: UpsertSlotInput): Promise<void> {
     const { error } = await this.client
       .from('cooking_meal_slots')
