@@ -97,6 +97,8 @@ export function SlotSheet({
     trpc.schedule.clearSlot.mutationOptions({
       onSuccess: () => {
         invalidate()
+        // Clearing a Food Bank slot releases its reservation.
+        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
         onOpenChange(false)
       },
     }),
@@ -104,9 +106,11 @@ export function SlotSheet({
   const cookMut = useMutation(
     trpc.schedule.cook.mutationOptions({
       onSuccess: () => {
-        // Cook mutates Inventory and marks the slot cooked — refresh both.
+        // Cook mutates Inventory, produces Food Bank portions, and marks the
+        // slot cooked — refresh all three views.
         queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.foodBank.summary.queryKey() })
         onOpenChange(false)
       },
     }),
