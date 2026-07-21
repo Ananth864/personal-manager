@@ -65,6 +65,12 @@ export interface SlotRow {
   /** Portions an ad-hoc Cook produces into the Food Bank (null otherwise). */
   adhocServings: number | null
   cooked: boolean
+  /**
+   * The portions this slot's Cook banked to the Food Bank (null until cooked).
+   * Stored at cook time so Uncook reverses exactly what was banked, without
+   * re-deriving from the (mutable) recipe servings. (ADR-0008.)
+   */
+  bankedPortions: number | null
 }
 
 /** Payload for upserting a slot. */

@@ -197,7 +197,7 @@ describe('cook', () => {
 
   describe('uncook', () => {
     async function uncookSlot(date: string, meal: 'lunch' | 'dinner') {
-      return uncook(schedule, inventory, foodBank, recipes, ledger, date, meal)
+      return uncook(schedule, inventory, foodBank, ledger, date, meal)
     }
 
     it('restores a Tracked ingredient to its pre-cook quantity and reverses banking', async () => {

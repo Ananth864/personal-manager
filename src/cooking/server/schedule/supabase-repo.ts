@@ -20,6 +20,7 @@ interface RawRow {
   adhoc_ingredients: AdhocIngredient[] | null
   adhoc_servings: number | null
   cooked: boolean
+  banked_portions: number | null
 }
 
 function toSlotRow(r: RawRow): SlotRow {
@@ -33,6 +34,7 @@ function toSlotRow(r: RawRow): SlotRow {
     adhocIngredients: r.adhoc_ingredients,
     adhocServings: r.adhoc_servings,
     cooked: r.cooked,
+    bankedPortions: r.banked_portions,
   }
 }
 
@@ -65,7 +67,7 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
       .select(
-        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked',
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked, banked_portions',
       )
       .gte('slot_date', weekStart)
       .lte('slot_date', end)
@@ -81,7 +83,7 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
       .select(
-        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked',
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, adhoc_servings, cooked, banked_portions',
       )
       .eq('slot_date', slotDate)
       .eq('meal', meal)
@@ -152,12 +154,13 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     }
   }
 
-  async claimForCook(slotDate: string, meal: MealPosition): Promise<boolean> {
+  async claimForCook(slotDate: string, meal: MealPosition, bankedPortions: number): Promise<boolean> {
     // Atomic conditional update: only flips cooked if it was false. If 0 rows
     // match (already cooked, or missing), nothing changed and we return false.
+    // Records the banked portions so Uncook reverses exactly what was banked.
     const { data, error } = await this.client
       .from('cooking_meal_slots')
-      .update({ cooked: true })
+      .update({ cooked: true, banked_portions: bankedPortions })
       .eq('slot_date', slotDate)
       .eq('meal', meal)
       .eq('cooked', false)

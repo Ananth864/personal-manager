@@ -135,9 +135,10 @@ export async function cook(
     throw new Error('Only fresh-cook slots (Recipe or Ad-hoc) can be cooked.')
   }
 
-  // Atomically claim the slot. If another Cook claimed it between our getSlot
-  // and now, this returns false and we abort before touching Inventory.
-  const claimed = await scheduleRepo.claimForCook(slotDate, meal)
+  // Atomically claim the slot, recording the portions this Cook banks so Uncook
+  // can reverse exactly that. If another Cook claimed it between our getSlot and
+  // now, this returns false and we abort before touching Inventory.
+  const claimed = await scheduleRepo.claimForCook(slotDate, meal, portionsToProduce)
   if (!claimed) {
     throw new Error('This meal has already been cooked.')
   }
@@ -176,20 +177,21 @@ export async function cook(
  * of Cook — the second thing that mutates Tracked Inventory. Replays the slot's
  * Ingredient Ledger entries (restoring each actual delta, so Unavailable →
  * Tracked where quantity becomes positive), reverses the Food Bank production
- * (floored at `produced − reserved` so reservations stay backed), and releases
- * the cooked flag so the slot can be cooked again.
+ * recorded on the slot (floored at `produced − reserved` so reservations stay
+ * backed), and releases the cooked flag so the slot can be cooked again.
  *
  * Endless/Unavailable ingredients had no ledger entry and so are unaffected.
  * Manual edits made between Cook and Uncook are preserved — only the Cook's own
  * delta is reversed. The banking reversal is non-throwing: if portions were
  * reserved after the Cook, fewer are pulled back (clear those slots first to
- * fully reverse the banking).
+ * fully reverse the banking). The banked portions are read from the slot (set
+ * at cook time) rather than re-derived from the recipe, so editing the recipe's
+ * servings between Cook and Uncook does not skew the reversal.
  */
 export async function uncook(
   scheduleRepo: ScheduleRepo,
   inventoryRepo: InventoryRepo,
   foodBankRepo: FoodBankRepo,
-  recipeRepo: RecipeRepo,
   ledgerRepo: IngredientLedgerRepo,
   slotDate: string,
   meal: MealPosition,
@@ -201,22 +203,13 @@ export async function uncook(
   if (!slot.cooked) {
     throw new Error('This meal has not been cooked yet.')
   }
-
-  // Resolve bankKey + the portions the Cook produced (same projection as cook()).
-  let bankKey: string | null
-  let portionsProduced: number
-  if (slot.assignmentType === 'recipe') {
-    if (!slot.recipeId) throw new Error('This slot has no recipe.')
-    const recipe = await recipeRepo.get(slot.recipeId)
-    if (!recipe) throw new Error('The recipe for this slot could not be found.')
-    portionsProduced = Math.max(0, recipe.servings - 1)
-    bankKey = slot.recipeId
-  } else if (slot.assignmentType === 'adhoc') {
-    portionsProduced = Math.max(0, (slot.adhocServings ?? 1) - 1)
-    bankKey = null
-  } else {
+  if (slot.assignmentType !== 'recipe' && slot.assignmentType !== 'adhoc') {
     throw new Error('Only fresh-cook slots (Recipe or Ad-hoc) can be uncooked.')
   }
+
+  // The portions this Cook banked, recorded on the slot at cook time.
+  const bankKey = slot.assignmentType === 'recipe' ? slot.recipeId : null
+  const portionsProduced = slot.bankedPortions ?? 0
 
   // 1. Restore ingredients: replay each ledger delta in reverse (+|delta|).
   const entries = await ledgerRepo.listActiveForSlot(slotDate, meal)

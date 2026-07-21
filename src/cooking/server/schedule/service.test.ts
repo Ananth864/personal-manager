@@ -53,6 +53,7 @@ function slot(
     adhocIngredients: null,
     adhocServings: null,
     cooked: false,
+    bankedPortions: null,
     ...partial,
   }
 }

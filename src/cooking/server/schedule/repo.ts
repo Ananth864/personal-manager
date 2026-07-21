@@ -29,11 +29,17 @@ export interface ScheduleRepo {
   clearSlot: (slotDate: string, meal: MealPosition) => Promise<void>
   /**
    * Atomically claim a slot for cooking: set cooked=true only if it is
-   * currently uncooked. Returns true if this call claimed it, false if it was
-   * already cooked (or doesn't exist). The atomic conditional update enforces
-   * one-Cook-per-slot even under concurrent calls.
+   * currently uncooked. Records `bankedPortions` (what this Cook banks to the
+   * Food Bank) so Uncook can reverse exactly that, without re-deriving it from
+   * mutable recipe servings (ADR-0008). Returns true if this call claimed it,
+   * false if it was already cooked (or doesn't exist). The atomic conditional
+   * update enforces one-Cook-per-slot even under concurrent calls.
    */
-  claimForCook: (slotDate: string, meal: MealPosition) => Promise<boolean>
+  claimForCook: (
+    slotDate: string,
+    meal: MealPosition,
+    bankedPortions: number,
+  ) => Promise<boolean>
   /**
    * Release a slot's cook claim (Uncook): set cooked=false. The deliberate
    * inverse of claimForCook — releases the slot so it can be cooked again.
@@ -97,6 +103,7 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
       adhocIngredients: input.adhocIngredients ?? null,
       adhocServings: input.adhocServings ?? null,
       cooked: existing?.cooked ?? false,
+      bankedPortions: existing?.bankedPortions ?? null,
     }
     this.slots.set(this.key(input.slotDate, input.meal), row)
   }
@@ -105,10 +112,10 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
     this.slots.delete(this.key(slotDate, meal))
   }
 
-  async claimForCook(slotDate: string, meal: MealPosition): Promise<boolean> {
+  async claimForCook(slotDate: string, meal: MealPosition, bankedPortions: number): Promise<boolean> {
     const row = this.slots.get(this.key(slotDate, meal))
     if (!row || row.cooked) return false
-    this.slots.set(this.key(slotDate, meal), { ...row, cooked: true })
+    this.slots.set(this.key(slotDate, meal), { ...row, cooked: true, bankedPortions })
     return true
   }
 

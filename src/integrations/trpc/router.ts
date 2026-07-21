@@ -302,7 +302,6 @@ export const trpcRouter = createTRPCRouter({
           scheduleRepoFor(ctx),
           repoFor(ctx),
           foodBankRepoFor(ctx),
-          recipeRepoFor(ctx),
           ledgerRepoFor(ctx),
           input.date,
           input.meal,

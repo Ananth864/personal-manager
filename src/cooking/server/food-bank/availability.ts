@@ -43,6 +43,13 @@ export interface FoodBankEntry {
   produced: number
   planned: number
   available: number
+  /**
+   * Portions that can be discarded without breaking a reservation:
+   * `produced − reserved`, floored at 0. Strictly less than `available` when
+   * `planned > 0` (projected portions can't be thrown away — they don't exist
+   * yet). The discard UI caps at this, not at `available`.
+   */
+  discardable: number
 }
 
 /** Available portions for one recipe: produced + planned − reservations. */
@@ -123,6 +130,7 @@ export function buildFoodBankSummary(
       produced: producedFor,
       planned: plannedFor,
       available: availableFor(producedFor, plannedFor, reservedFor),
+      discardable: Math.max(0, producedFor - reservedFor),
     }
   })
 }

@@ -65,6 +65,7 @@ describe('food bank availability', () => {
         produced: 4,
         planned: 0,
         available: 3,
+        discardable: 3,
       })
     })
 
