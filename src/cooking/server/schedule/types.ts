@@ -36,6 +36,8 @@ export interface MealSlot {
   meal: MealPosition
   assignment: SlotAssignment | null
   shortfall: number | null
+  /** Has this slot's meal been cooked? (One Cook per slot.) */
+  cooked: boolean
 }
 
 export interface DayPlan {
@@ -60,6 +62,7 @@ export interface SlotRow {
   recipeId: string | null
   adhocName: string | null
   adhocIngredients: AdhocIngredient[] | null
+  cooked: boolean
 }
 
 /** Payload for upserting a slot. */

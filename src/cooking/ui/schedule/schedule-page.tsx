@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { useTRPC } from '#/integrations/trpc/react'
 import { ErrorState, LoadingState } from '../shared-states'
@@ -175,9 +175,14 @@ function SlotRow({
       <div className="min-w-0 flex-1">
         <SlotContent assignment={slot.assignment} />
       </div>
-      {slot.shortfall != null && slot.shortfall > 0 && (
+      {slot.cooked ? (
+        <Check
+          className="h-4 w-4 shrink-0 text-primary"
+          aria-label="Cooked"
+        />
+      ) : slot.shortfall != null && slot.shortfall > 0 ? (
         <ShortfallFlag count={slot.shortfall} className="shrink-0" />
-      )}
+      ) : null}
     </button>
   )
 }

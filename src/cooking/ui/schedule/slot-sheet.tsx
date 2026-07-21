@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Plus } from 'lucide-react'
+import { Check, ChevronLeft, Plus, Utensils } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -16,10 +16,12 @@ import { useTRPC } from '#/integrations/trpc/react'
 import { IngredientPickerRow } from '../ingredient-picker-row'
 import type { PickerRow } from '../ingredient-picker-row'
 import { RecipeBadge } from '../recipes/recipe-badge'
+import { formatQuantity } from '../inventory/format'
 import { dayLabel } from '#/cooking/schedule/date-utils'
 import type { MealSlot } from '#/cooking/server/schedule/types'
+import type { CookPreview } from '#/cooking/server/schedule/cook'
 
-type Mode = 'menu' | 'recipe' | 'adhoc'
+type Mode = 'menu' | 'recipe' | 'adhoc' | 'cook'
 
 export function SlotSheet({
   slot,
@@ -52,6 +54,13 @@ export function SlotSheet({
   const inventoryQuery = useQuery({
     ...trpc.inventory.list.queryOptions(),
     enabled: open && mode === 'adhoc',
+  })
+  const cookPreviewQuery = useQuery({
+    ...trpc.schedule.previewCook.queryOptions({
+      date: slot?.date ?? '',
+      meal: slot?.meal ?? 'lunch',
+    }),
+    enabled: open && mode === 'cook',
   })
 
   function invalidate() {
@@ -90,6 +99,16 @@ export function SlotSheet({
       },
     }),
   )
+  const cookMut = useMutation(
+    trpc.schedule.cook.mutationOptions({
+      onSuccess: () => {
+        // Cook mutates Inventory and marks the slot cooked — refresh both.
+        queryClient.invalidateQueries({ queryKey: trpc.schedule.getWeek.queryKey() })
+        queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
+        onOpenChange(false)
+      },
+    }),
+  )
 
   if (!slot) {
     return (
@@ -104,12 +123,14 @@ export function SlotSheet({
     assignRecipeMut.isPending ||
     assignAdhocMut.isPending ||
     markNoCookMut.isPending ||
-    clearMut.isPending
+    clearMut.isPending ||
+    cookMut.isPending
   const errorMessage =
     assignRecipeMut.error?.message ??
     assignAdhocMut.error?.message ??
     markNoCookMut.error?.message ??
-    clearMut.error?.message
+    clearMut.error?.message ??
+    cookMut.error?.message
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -119,6 +140,7 @@ export function SlotSheet({
             {mode === 'menu' && `${label.weekday} ${slot.meal}`}
             {mode === 'recipe' && 'Choose a recipe'}
             {mode === 'adhoc' && 'Ad-hoc recipe'}
+            {mode === 'cook' && 'Cook meal'}
           </SheetTitle>
           <SheetDescription className="capitalize">
             {mode === 'menu' && (
@@ -143,6 +165,7 @@ export function SlotSheet({
           <Menu
             slot={slot}
             pending={pending}
+            onCook={() => setMode('cook')}
             onRecipe={() => setMode('recipe')}
             onAdhoc={() => setMode('adhoc')}
             onNoCook={() =>
@@ -186,6 +209,17 @@ export function SlotSheet({
           />
         )}
 
+        {mode === 'cook' && (
+          <CookConfirm
+            preview={cookPreviewQuery.data ?? null}
+            loading={cookPreviewQuery.isLoading}
+            pending={cookMut.isPending}
+            onConfirm={() =>
+              cookMut.mutate({ date: slot.date, meal: slot.meal })
+            }
+          />
+        )}
+
         {errorMessage && (
           <p className="text-sm text-destructive" role="alert">
             {errorMessage}
@@ -208,6 +242,7 @@ function summary(slot: MealSlot): string {
 function Menu({
   slot,
   pending,
+  onCook,
   onRecipe,
   onAdhoc,
   onNoCook,
@@ -215,14 +250,27 @@ function Menu({
 }: {
   slot: MealSlot
   pending: boolean
+  onCook: () => void
   onRecipe: () => void
   onAdhoc: () => void
   onNoCook: () => void
   onClear: () => void
 }) {
   const assigned = slot.assignment !== null
+  const a = slot.assignment
+  const cookable = a !== null && (a.type === 'recipe' || a.type === 'adhoc')
   return (
     <div className="flex flex-1 flex-col gap-2">
+      {cookable && !slot.cooked && (
+        <Button type="button" onClick={onCook} disabled={pending} className="w-full">
+          <Utensils className="h-4 w-4" /> Cook this meal
+        </Button>
+      )}
+      {slot.cooked && (
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-primary">
+          <Check className="h-4 w-4" /> Cooked
+        </div>
+      )}
       <MenuButton label="Assign a recipe" hint="From your catalog" onClick={onRecipe} disabled={pending} />
       <MenuButton label="Add an ad-hoc recipe" hint="A one-off ingredient list" onClick={onAdhoc} disabled={pending} />
       <MenuButton
@@ -408,6 +456,65 @@ function AdhocForm({
           Save ad-hoc recipe
         </Button>
       </SheetClose>
+    </div>
+  )
+}
+
+function CookConfirm({
+  preview,
+  loading,
+  pending,
+  onConfirm,
+}: {
+  preview: CookPreview | null
+  loading: boolean
+  pending: boolean
+  onConfirm: () => void
+}) {
+  if (loading) {
+    return (
+      <p className="text-sm text-muted-foreground">Working out what you'll use…</p>
+    )
+  }
+  if (!preview) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        There's nothing to cook here.
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+      <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+        {preview.lines.map((l) => (
+          <li key={l.ingredientId} className="px-4 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{l.name}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {l.currentState === 'endless'
+                  ? 'staple'
+                  : `${formatQuantity(l.currentQty) ?? 0} ${l.unit} → ${formatQuantity(l.newQty) ?? 0} ${l.unit}`}
+              </span>
+            </div>
+            {l.warning && (
+              <p className="mt-0.5 text-xs text-accent-warm-foreground">
+                {l.currentState === 'unavailable'
+                  ? 'Unavailable — cooking will skip it.'
+                  : 'Not enough on hand — it will run out.'}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+      {preview.portionsToProduce > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Produces {preview.portionsToProduce} portion
+          {preview.portionsToProduce === 1 ? '' : 's'} into the Food Bank.
+        </p>
+      )}
+      <Button type="button" onClick={onConfirm} disabled={pending}>
+        {pending ? 'Cooking…' : 'Confirm cook'}
+      </Button>
     </div>
   )
 }

@@ -25,6 +25,8 @@ import {
   clearSlot,
   markNoCook,
 } from '#/cooking/server/schedule/service'
+import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
+import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import type { Context } from './init'
 
 const stateSchema = z.enum(['endless', 'tracked', 'unavailable'])
@@ -40,6 +42,10 @@ function recipeRepoFor(ctx: Context) {
 
 function scheduleRepoFor(ctx: Context) {
   return new SupabaseScheduleRepo(ctx.token!)
+}
+
+function foodBankRepoFor(ctx: Context) {
+  return new SupabaseFoodBankRepo(ctx.token!)
 }
 
 /** Fetch the user's inventory snapshot, for availability badges. */
@@ -196,6 +202,65 @@ export const trpcRouter = createTRPCRouter({
       )
       .mutation(({ ctx, input }) =>
         clearSlot(scheduleRepoFor(ctx), input.date, input.meal),
+      ),
+
+    previewCook: protectedProcedure
+      .input(
+        z.object({ date: z.string(), meal: z.enum(['lunch', 'dinner']) }),
+      )
+      .query(async ({ ctx, input }) => {
+        const [slot, inventory] = await Promise.all([
+          scheduleRepoFor(ctx).getSlot(input.date, input.meal),
+          inventoryFor(ctx),
+        ])
+        if (!slot || slot.cooked) return null
+        if (slot.assignmentType === 'recipe') {
+          if (!slot.recipeId) return null
+          const recipe = await recipeRepoFor(ctx).get(slot.recipeId)
+          if (!recipe) return null
+          return buildCookPreview(
+            recipe.ingredients.map((i) => ({
+              ingredientId: i.ingredient.id,
+              quantity: i.quantity,
+              name: i.ingredient.name,
+              unit: i.ingredient.unit,
+            })),
+            inventory,
+            recipe.servings,
+          )
+        }
+        if (slot.assignmentType === 'adhoc') {
+          const invById = new Map(inventory.map((i) => [i.ingredient.id, i.ingredient]))
+          return buildCookPreview(
+            (slot.adhocIngredients ?? []).map((a) => {
+              const ing = invById.get(a.ingredientId)
+              return {
+                ingredientId: a.ingredientId,
+                quantity: a.quantity,
+                name: ing?.name ?? 'Unknown ingredient',
+                unit: ing?.unit ?? '',
+              }
+            }),
+            inventory,
+            0,
+          )
+        }
+        return null
+      }),
+
+    cook: protectedProcedure
+      .input(
+        z.object({ date: z.string(), meal: z.enum(['lunch', 'dinner']) }),
+      )
+      .mutation(({ ctx, input }) =>
+        cook(
+          scheduleRepoFor(ctx),
+          repoFor(ctx),
+          foodBankRepoFor(ctx),
+          recipeRepoFor(ctx),
+          input.date,
+          input.meal,
+        ),
       ),
   }),
 })

@@ -18,6 +18,7 @@ interface RawRow {
   recipe_id: string | null
   adhoc_name: string | null
   adhoc_ingredients: AdhocIngredient[] | null
+  cooked: boolean
 }
 
 function toSlotRow(r: RawRow): SlotRow {
@@ -29,6 +30,7 @@ function toSlotRow(r: RawRow): SlotRow {
     recipeId: r.recipe_id,
     adhocName: r.adhoc_name,
     adhocIngredients: r.adhoc_ingredients,
+    cooked: r.cooked,
   }
 }
 
@@ -60,7 +62,7 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
     const { data, error } = await this.client
       .from('cooking_meal_slots')
       .select(
-        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients',
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, cooked',
       )
       .gte('slot_date', weekStart)
       .lte('slot_date', end)
@@ -70,6 +72,21 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
       throw new Error(`Failed to list schedule: ${error.message}`)
     }
     return (data as RawRow[]).map(toSlotRow)
+  }
+
+  async getSlot(slotDate: string, meal: MealPosition): Promise<SlotRow | null> {
+    const { data, error } = await this.client
+      .from('cooking_meal_slots')
+      .select(
+        'id, slot_date, meal, assignment_type, recipe_id, adhoc_name, adhoc_ingredients, cooked',
+      )
+      .eq('slot_date', slotDate)
+      .eq('meal', meal)
+      .maybeSingle()
+    if (error) {
+      throw new Error(`Failed to get slot: ${error.message}`)
+    }
+    return data ? toSlotRow(data) : null
   }
 
   async upsertSlot(input: UpsertSlotInput): Promise<void> {
@@ -89,6 +106,17 @@ export class SupabaseScheduleRepo implements ScheduleRepo {
       .eq('meal', meal)
     if (error) {
       throw new Error(`Failed to clear slot: ${error.message}`)
+    }
+  }
+
+  async markCooked(slotDate: string, meal: MealPosition): Promise<void> {
+    const { error } = await this.client
+      .from('cooking_meal_slots')
+      .update({ cooked: true })
+      .eq('slot_date', slotDate)
+      .eq('meal', meal)
+    if (error) {
+      throw new Error(`Failed to mark slot cooked: ${error.message}`)
     }
   }
 }

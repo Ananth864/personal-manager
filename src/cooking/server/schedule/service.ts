@@ -139,12 +139,13 @@ function buildSlot(
   sim: Map<string, number>,
 ): MealSlot {
   const row = slotByKey.get(`${date}_${meal}`)
-  if (!row) return { date, meal, assignment: null, shortfall: null }
+  if (!row) return { date, meal, assignment: null, shortfall: null, cooked: false }
   return {
     date,
     meal,
     assignment: toAssignment(row, recipeById),
     shortfall: projectShortfall(row, recipeById, invById, sim),
+    cooked: row.cooked,
   }
 }
 

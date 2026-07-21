@@ -39,3 +39,24 @@ export function applySetState(
   }
   return { ...item, state: 'tracked', quantity, updatedAt: new Date() }
 }
+
+/**
+ * The Cook decrement (CONTEXT.md → Cook). The only rule that lowers a Tracked
+ * quantity. Tracked ingredients drop by `required`, clamping at zero; reaching
+ * zero transitions the ingredient to Unavailable. Endless ingredients are
+ * unaffected (staples you never count). Unavailable ingredients stay
+ * Unavailable — never negative, even when the recipe calls for more than is on
+ * hand. Cook is warn-only (never blocks), so this never throws.
+ */
+export function applyCookDecrement(item: InventoryItem, required: number): InventoryItem {
+  if (item.state === 'endless') return item
+  if (item.state === 'unavailable') return item
+  const current = item.quantity ?? 0
+  const next = Math.max(0, current - required)
+  return {
+    ...item,
+    state: next === 0 ? 'unavailable' : 'tracked',
+    quantity: next,
+    updatedAt: new Date(),
+  }
+}

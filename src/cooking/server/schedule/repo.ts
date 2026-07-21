@@ -14,8 +14,12 @@ import type {
 export interface ScheduleRepo {
   /** All assigned slots in the week [weekStart, weekStart+6]. */
   listSlots: (weekStart: string) => Promise<SlotRow[]>
+  /** A single slot, or null if the slot is unassigned. */
+  getSlot: (slotDate: string, meal: MealPosition) => Promise<SlotRow | null>
   upsertSlot: (input: UpsertSlotInput) => Promise<void>
   clearSlot: (slotDate: string, meal: MealPosition) => Promise<void>
+  /** Mark a slot cooked (one Cook per slot). */
+  markCooked: (slotDate: string, meal: MealPosition) => Promise<void>
 }
 
 /** In-memory implementation used by the service-layer tests. */
@@ -37,6 +41,10 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
       )
   }
 
+  async getSlot(slotDate: string, meal: MealPosition): Promise<SlotRow | null> {
+    return this.slots.get(this.key(slotDate, meal)) ?? null
+  }
+
   async upsertSlot(input: UpsertSlotInput): Promise<void> {
     const existing = this.slots.get(this.key(input.slotDate, input.meal))
     const row: SlotRow = {
@@ -47,11 +55,18 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
       recipeId: input.recipeId ?? null,
       adhocName: input.adhocName ?? null,
       adhocIngredients: input.adhocIngredients ?? null,
+      cooked: existing?.cooked ?? false,
     }
     this.slots.set(this.key(input.slotDate, input.meal), row)
   }
 
   async clearSlot(slotDate: string, meal: MealPosition): Promise<void> {
     this.slots.delete(this.key(slotDate, meal))
+  }
+
+  async markCooked(slotDate: string, meal: MealPosition): Promise<void> {
+    const row = this.slots.get(this.key(slotDate, meal))
+    if (!row) return
+    this.slots.set(this.key(slotDate, meal), { ...row, cooked: true })
   }
 }
