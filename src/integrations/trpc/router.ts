@@ -27,8 +27,9 @@ import {
   markNoCook,
 } from '#/cooking/server/schedule/service'
 import { buildCookPreview, cook } from '#/cooking/server/schedule/cook'
-import { buildFoodBankSummary } from '#/cooking/server/food-bank/availability'
+import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/server/food-bank/availability'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
+import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
 
 const stateSchema = z.enum(['endless', 'tracked', 'unavailable'])
@@ -219,6 +220,7 @@ export const trpcRouter = createTRPCRouter({
         assignFoodBank(
           scheduleRepoFor(ctx),
           foodBankRepoFor(ctx),
+          recipeRepoFor(ctx),
           input.date,
           input.meal,
           input.recipeId,
@@ -287,13 +289,20 @@ export const trpcRouter = createTRPCRouter({
 
   foodBank: createTRPCRouter({
     summary: protectedProcedure.query(async ({ ctx }) => {
-      const [produced, reservations, recipes] = await Promise.all([
+      const [produced, reservations, plannedCooks, recipes] = await Promise.all([
         foodBankRepoFor(ctx).listProduced(),
         scheduleRepoFor(ctx).listFoodBankSlots(),
+        scheduleRepoFor(ctx).listPlannedCooks(),
         recipeRepoFor(ctx).list(),
       ])
+      const servingsById = new Map(recipes.map((r) => [r.id, r.servings]))
+      const planned = computePlannedProductions(
+        plannedCooks,
+        (id) => servingsById.get(id),
+        mondayOfWeek(todayISO()),
+      )
       const nameById = new Map(recipes.map((r) => [r.id, r.name]))
-      return buildFoodBankSummary(produced, reservations, (id) =>
+      return buildFoodBankSummary(produced, planned, reservations, (id) =>
         id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
       )
     }),

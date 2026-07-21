@@ -16,6 +16,13 @@ export interface ScheduleRepo {
   listSlots: (weekStart: string) => Promise<SlotRow[]>
   /** All Food Bank reservation slots (every week), for availability derivation. */
   listFoodBankSlots: () => Promise<{ recipeId: string | null; slotDate: string }[]>
+  /**
+   * All uncooked recipe/ad-hoc slots (every week) — planned cooks whose future
+   * leftovers can be projected into Food Bank availability.
+   */
+  listPlannedCooks: () => Promise<
+    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]
+  >
   /** A single slot, or null if the slot is unassigned. */
   getSlot: (slotDate: string, meal: MealPosition) => Promise<SlotRow | null>
   upsertSlot: (input: UpsertSlotInput) => Promise<void>
@@ -56,6 +63,21 @@ export class InMemoryScheduleRepo implements ScheduleRepo {
     return [...this.slots.values()]
       .filter((s) => s.assignmentType === 'foodbank')
       .map((s) => ({ recipeId: s.recipeId, slotDate: s.slotDate }))
+  }
+
+  async listPlannedCooks(): Promise<
+    { recipeId: string | null; slotDate: string; assignmentType: 'recipe' | 'adhoc'; adhocServings: number | null }[]
+  > {
+    return [...this.slots.values()]
+      .filter(
+        (s) => !s.cooked && (s.assignmentType === 'recipe' || s.assignmentType === 'adhoc'),
+      )
+      .map((s) => ({
+        recipeId: s.recipeId,
+        slotDate: s.slotDate,
+        assignmentType: s.assignmentType as 'recipe' | 'adhoc',
+        adhocServings: s.adhocServings,
+      }))
   }
 
   async upsertSlot(input: UpsertSlotInput): Promise<void> {
