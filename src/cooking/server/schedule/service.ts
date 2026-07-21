@@ -1,4 +1,3 @@
-import { computeAvailability } from '../recipes/availability'
 import type { InventoryItem } from '../inventory/types'
 import type { RecipeDetail } from '../recipes/types'
 import type { ScheduleRepo } from './repo'
@@ -71,23 +70,64 @@ function toAssignment(
   return { type: row.assignmentType }
 }
 
-function shortfallFor(
+/** Resolve a slot's required ingredient lines, or null when there's nothing to check. */
+function requiredLines(
   row: SlotRow,
   recipeById: Map<string, RecipeDetail>,
-  inventory: InventoryItem[],
-): number | null {
+): { ingredientId: string; quantity: number }[] | null {
   if (row.assignmentType === 'recipe') {
     const r = row.recipeId ? recipeById.get(row.recipeId) : undefined
     if (!r) return null
-    return computeAvailability(
-      r.ingredients.map((i) => ({ ingredientId: i.ingredient.id, quantity: i.quantity })),
-      inventory,
-    ).missingCount
+    return r.ingredients.map((i) => ({
+      ingredientId: i.ingredient.id,
+      quantity: i.quantity,
+    }))
   }
   if (row.assignmentType === 'adhoc') {
-    return computeAvailability(row.adhocIngredients ?? [], inventory).missingCount
+    return (row.adhocIngredients ?? []).map((a) => ({
+      ingredientId: a.ingredientId,
+      quantity: a.quantity,
+    }))
   }
   return null
+}
+
+/**
+ * Project this slot's shortfall against a *running* simulated balance of
+ * Tracked ingredients. The week is walked chronologically, so an earlier
+ * planned cook consumes from `sim` and a later meal that looked cookable in
+ * isolation can flag short once that Tracked ingredient is used up. Endless
+ * ingredients are always available and never consumed; Unavailable and
+ * not-in-inventory count as short. `sim` is mutated in place.
+ *
+ * Planning is not Cooking (ADR-0001): this mutates only the throwaway `sim`
+ * map, never the Inventory passed in.
+ */
+function projectShortfall(
+  row: SlotRow,
+  recipeById: Map<string, RecipeDetail>,
+  invById: Map<string, InventoryItem>,
+  sim: Map<string, number>,
+): number | null {
+  const lines = requiredLines(row, recipeById)
+  if (lines === null) return null
+  let missing = 0
+  for (const line of lines) {
+    const inv = invById.get(line.ingredientId)
+    if (!inv || inv.state === 'unavailable') {
+      missing++
+      continue
+    }
+    if (inv.state === 'endless') continue
+    const avail = sim.get(line.ingredientId) ?? 0
+    if (avail >= line.quantity) {
+      sim.set(line.ingredientId, avail - line.quantity)
+    } else {
+      missing++
+      sim.set(line.ingredientId, 0)
+    }
+  }
+  return missing
 }
 
 function buildSlot(
@@ -95,7 +135,8 @@ function buildSlot(
   meal: MealPosition,
   slotByKey: Map<string, SlotRow>,
   recipeById: Map<string, RecipeDetail>,
-  inventory: InventoryItem[],
+  invById: Map<string, InventoryItem>,
+  sim: Map<string, number>,
 ): MealSlot {
   const row = slotByKey.get(`${date}_${meal}`)
   if (!row) return { date, meal, assignment: null, shortfall: null }
@@ -103,7 +144,7 @@ function buildSlot(
     date,
     meal,
     assignment: toAssignment(row, recipeById),
-    shortfall: shortfallFor(row, recipeById, inventory),
+    shortfall: projectShortfall(row, recipeById, invById, sim),
   }
 }
 
@@ -115,10 +156,17 @@ export function buildWeek(
 ): Week {
   const recipeById = new Map(recipes.map((r) => [r.id, r]))
   const slotByKey = new Map(slots.map((s) => [`${s.slotDate}_${s.meal}`, s]))
+  const invById = new Map(inventory.map((i) => [i.ingredient.id, i]))
+  // Simulated Tracked balances for the sequential projection — a fresh copy, so
+  // the real Inventory passed in is never mutated (ADR-0001: planning ≠ cooking).
+  const sim = new Map<string, number>()
+  for (const i of inventory) {
+    if (i.state === 'tracked') sim.set(i.ingredient.id, i.quantity ?? 0)
+  }
   const days: DayPlan[] = weekDays(weekStart).map((date) => ({
     date,
-    lunch: buildSlot(date, 'lunch', slotByKey, recipeById, inventory),
-    dinner: buildSlot(date, 'dinner', slotByKey, recipeById, inventory),
+    lunch: buildSlot(date, 'lunch', slotByKey, recipeById, invById, sim),
+    dinner: buildSlot(date, 'dinner', slotByKey, recipeById, invById, sim),
   }))
   return { weekStart, days, readonly: isPastWeek(weekStart) }
 }

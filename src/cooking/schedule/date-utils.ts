@@ -1,10 +1,16 @@
 /**
  * Calendar-date helpers for the Schedule. All arithmetic is done on UTC-noon
  * Date values parsed from `yyyy-mm-dd` strings, so daylight-saving edges can't
- * roll a date into the wrong day. "Today" is the user's *local* today.
+ * roll a date into the wrong day.
+ *
+ * "Today" is fixed to Singapore time (Asia/Singapore, UTC+8, no DST) so the
+ * SSR pass on a UTC server and the client agree on what "today" is.
  *
  * Isomorphic — used by both the schedule service (server) and the schedule UI.
  */
+
+/** The user's timezone. Singapore observes UTC+8 year-round (no DST). */
+const TZ = 'Asia/Singapore'
 
 /** Parse a `yyyy-mm-dd` string into a Date at UTC noon (stable for arithmetic). */
 function utcNoon(iso: string): Date {
@@ -16,10 +22,14 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** Local today as `yyyy-mm-dd`. */
+/** Today as `yyyy-mm-dd`, in Singapore time (host-timezone-independent). */
 export function todayISO(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 /** Format a UTC Date (constructed from an ISO date) back to `yyyy-mm-dd`. */

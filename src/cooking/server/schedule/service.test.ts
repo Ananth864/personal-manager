@@ -118,6 +118,47 @@ describe('schedule service', () => {
       expect(week.days[3].lunch.shortfall).toBeNull()
       expect(week.days[3].dinner.shortfall).toBeNull() // unassigned
     })
+
+    it('projects shortfall sequentially: earlier meals consume Tracked stock', () => {
+      // 6 eggs tracked; two meals each needing 4 eggs. The first is cookable,
+      // the second flags short because the first used up 4 of the 6.
+      const rcp = recipe('rcp_egg', 'Eggs', [{ id: 'ing_egg', qty: 4 }])
+      const inventory: InventoryItem[] = [
+        {
+          ingredient: { id: 'ing_egg', name: 'Egg', unit: 'piece', createdAt: new Date() },
+          state: 'tracked',
+          quantity: 6,
+          updatedAt: new Date(),
+        },
+      ]
+      const slots = [
+        slot(addDays(weekStart, 0), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
+        slot(addDays(weekStart, 2), 'dinner', { assignmentType: 'recipe', recipeId: 'rcp_egg' }),
+      ]
+      const week = buildWeek(weekStart, slots, [rcp], inventory)
+      expect(week.days[0].lunch.shortfall).toBe(0) // 6 >= 4, sim drops to 2
+      expect(week.days[2].dinner.shortfall).toBe(1) // only 2 left, needs 4
+    })
+
+    it('never mutates the Inventory it was given (planning ≠ cooking)', () => {
+      const rcp = recipe('rcp_egg', 'Eggs', [{ id: 'ing_egg', qty: 4 }])
+      const inventory: InventoryItem[] = [
+        {
+          ingredient: { id: 'ing_egg', name: 'Egg', unit: 'piece', createdAt: new Date() },
+          state: 'tracked',
+          quantity: 6,
+          updatedAt: new Date(),
+        },
+      ]
+      const before = structuredClone(inventory)
+      buildWeek(
+        weekStart,
+        [slot(addDays(weekStart, 0), 'lunch', { assignmentType: 'recipe', recipeId: 'rcp_egg' })],
+        [rcp],
+        inventory,
+      )
+      expect(inventory).toEqual(before)
+    })
   })
 
   describe('mutations leave Inventory unchanged (ADR-0001)', () => {
