@@ -3,6 +3,13 @@ import { createStart } from '@tanstack/react-start'
 
 export const startInstance = createStart(() => {
   return {
-    requestMiddleware: [clerkMiddleware()],
+    requestMiddleware: [
+      clerkMiddleware({
+        authorizedParties: [
+          'http://localhost:3000',
+          'https://incomparable-centaur-d1ac57.netlify.app',
+        ],
+      }),
+    ],
   }
 })
