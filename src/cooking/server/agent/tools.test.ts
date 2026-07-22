@@ -207,11 +207,22 @@ describe('agent tools', () => {
   })
 
   describe('query_past_weeks', () => {
-    it('returns read-only summaries of recent past weeks', async () => {
+    it('returns read-only summaries of recent past weeks with their assignments', async () => {
+      // Seed a real past-week assignment (repo upsert is raw — no past guard).
+      const pastMonday = addDays(currentWeekStart(), -7)
+      await deps.schedule.upsertSlot({
+        slotDate: pastMonday,
+        meal: 'dinner',
+        assignmentType: 'nocook',
+      })
       const tools = createAgentTools(deps)
       const result = await tools.query_past_weeks.execute({ weeks: 2 })
       expect(result.weeks).toHaveLength(2)
       expect(result.weeks.every((w: { readonly: boolean }) => w.readonly)).toBe(true)
+      const seeded = result.weeks.find((w: { weekStart: string }) => w.weekStart === pastMonday)
+      expect(seeded?.days.find((d: { date: string }) => d.date === pastMonday)?.dinner).toBe(
+        'No cook',
+      )
     })
   })
 

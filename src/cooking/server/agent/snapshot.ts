@@ -1,6 +1,29 @@
 import type { InventoryItem } from '../inventory/types'
+import type { InventoryRepo } from '../inventory/repo'
+import type { RecipeRepo } from '../recipes/repo'
+import type { ScheduleRepo } from '../schedule/repo'
+import { listInventory } from '../inventory/service'
+import { buildWeek } from '../schedule/service'
 import type { Week } from '../schedule/types'
 import type { FoodBankEntry } from '../food-bank/availability'
+
+/**
+ * Load a hydrated Week plus the inventory snapshot in one fan-out. Shared by the
+ * agent's per-turn snapshot and the query_schedule / query_past_weeks tools so
+ * the buildWeek inputs (slots + recipes + inventory) are loaded once, not
+ * re-fanned-out at each call site.
+ */
+export async function loadAgentWeek(
+  repos: { schedule: ScheduleRepo; recipes: RecipeRepo; inventory: InventoryRepo },
+  weekStart: string,
+): Promise<{ week: Week; inventory: InventoryItem[] }> {
+  const [slots, recipes, inventory] = await Promise.all([
+    repos.schedule.listSlots(weekStart),
+    repos.recipes.list(),
+    listInventory(repos.inventory),
+  ])
+  return { week: buildWeek(weekStart, slots, recipes, inventory), inventory }
+}
 
 /**
  * Build a compact, plain-text snapshot of the user's current domain state to

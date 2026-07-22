@@ -16,10 +16,8 @@ import { SupabaseInventoryRepo } from '#/cooking/server/inventory/supabase-repo'
 import { SupabaseScheduleRepo } from '#/cooking/server/schedule/supabase-repo'
 import { SupabaseRecipeRepo } from '#/cooking/server/recipes/supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
-import { listInventory } from '#/cooking/server/inventory/service'
-import { buildWeek } from '#/cooking/server/schedule/service'
 import { foodBankSummaryFor } from '#/cooking/server/food-bank/service'
-import { buildStateSnapshot } from '#/cooking/server/agent/snapshot'
+import { buildStateSnapshot, loadAgentWeek } from '#/cooking/server/agent/snapshot'
 import { createAgentTools } from '#/cooking/server/agent/tools'
 import { SupabaseChatMessageRepo } from '#/cooking/server/agent/chat-repo'
 import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
@@ -59,16 +57,13 @@ async function handler({ request }: { request: Request }) {
   // Fresh per-turn state snapshot (ADR-0007): current week + inventory + food bank.
   // The food-bank summary shares its loader with the tRPC procedure (one source).
   const weekStart = mondayOfWeek(todayISO())
-  const [slots, recipes, inventory, foodBank, history] = await Promise.all([
-    scheduleRepo.listSlots(weekStart),
-    recipeRepo.list(),
-    listInventory(inventoryRepo),
+  const [{ week, inventory }, foodBank, history] = await Promise.all([
+    loadAgentWeek({ schedule: scheduleRepo, recipes: recipeRepo, inventory: inventoryRepo }, weekStart),
     foodBankSummaryFor(foodBankRepo, scheduleRepo, recipeRepo),
     // History is authoritative from the table (ADR-0007); the new user message
     // is taken from the client payload (not yet persisted).
     new SupabaseChatMessageRepo(token).loadRecent(HISTORY_TURNS * 2),
   ])
-  const week = buildWeek(weekStart, slots, recipes, inventory)
   const snapshot = buildStateSnapshot(week, inventory, foodBank)
 
   const newUserMessage = messages[messages.length - 1]
@@ -85,9 +80,10 @@ async function handler({ request }: { request: Request }) {
       recipes: recipeRepo,
       foodBank: foodBankRepo,
     }),
-    // Multi-step allows "plan my week": query, then batch-assign across slots,
-    // then confirm. Generous so a full current+next-week plan isn't truncated.
-    stopWhen: isStepCount(10),
+    // Multi-step allows "plan my week": query, then batch-assign across the
+    // current + next week (up to 28 slots), then confirm. The model makes many
+    // tool calls per step, but a generous cap keeps a full plan from truncating.
+    stopWhen: isStepCount(20),
   })
 
   return createUIMessageStreamResponse({

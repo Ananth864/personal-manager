@@ -15,12 +15,11 @@ import {
   assignAdhoc,
   assignFoodBank,
   assignRecipe,
-  buildWeek,
   clearSlot,
   markNoCook,
 } from '../schedule/service'
 import { foodBankSummaryFor } from '../food-bank/service'
-import { assignmentLabel } from './snapshot'
+import { assignmentLabel, loadAgentWeek } from './snapshot'
 import { addDays, mondayOfWeek, todayISO } from '../../schedule/date-utils'
 
 /** A compact, JSON-serializable view of an Inventory item for tool results. */
@@ -64,13 +63,9 @@ function summarizeWeek(week: Week) {
   }
 }
 
-async function loadWeek(deps: AgentToolDeps, weekStart: string): Promise<Week> {
-  const [slots, recipes, inventory] = await Promise.all([
-    deps.schedule.listSlots(weekStart),
-    deps.recipes.list(),
-    listInventory(deps.inventory),
-  ])
-  return buildWeek(weekStart, slots, recipes, inventory)
+async function loadWeek(deps: AgentToolDeps, weekStart: string) {
+  const { week } = await loadAgentWeek(deps, weekStart)
+  return week
 }
 
 /**
@@ -136,7 +131,7 @@ export function createAgentTools(deps: AgentToolDeps) {
     // ── Schedule ───────────────────────────────────────────────────────────
     assign_slot: {
       description:
-        'Assign a Meal Slot (a date + lunch/dinner) one of four ways: a catalog recipe, an ad-hoc one-off recipe, a Food Bank portion withdrawal, or No Cook. Past weeks are read-only. For "plan my week", call this for each slot you want to fill.',
+        'Assign a Meal Slot (a date + lunch/dinner) one of four ways: a catalog recipe, an ad-hoc recipe, a Food Bank portion withdrawal, or No Cook. Past weeks are read-only. For "plan my week", call this for each slot you want to fill.',
       inputSchema: z.discriminatedUnion('type', [
         z.object({
           type: z.literal('recipe'),
@@ -330,7 +325,7 @@ export function createAgentTools(deps: AgentToolDeps) {
 
     query_food_bank: {
       description:
-        'Read Food Bank availability: prepared portions per recipe (produced, planned from upcoming cooks, reserved, and how many are available/discardable). Use this to suggest eating leftovers.',
+        'Read Food Bank availability: prepared portions per recipe (produced, planned from upcoming cooks, reserved, and how many are available/discardable). Use this to suggest eating from the Food Bank.',
       inputSchema: z.object({}),
       execute: async () => {
         const summary = await foodBankSummaryFor(deps.foodBank, deps.schedule, deps.recipes)
