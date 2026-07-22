@@ -20,7 +20,7 @@ import { listInventory } from '#/cooking/server/inventory/service'
 import { buildWeek } from '#/cooking/server/schedule/service'
 import { foodBankSummaryFor } from '#/cooking/server/food-bank/service'
 import { buildStateSnapshot } from '#/cooking/server/agent/snapshot'
-import { createInventoryTools } from '#/cooking/server/agent/tools'
+import { createAgentTools } from '#/cooking/server/agent/tools'
 import { SupabaseChatMessageRepo } from '#/cooking/server/agent/chat-repo'
 import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 
@@ -79,8 +79,15 @@ async function handler({ request }: { request: Request }) {
     model: openai(MODEL),
     instructions: `${AGENT_INSTRUCTIONS}\n\n${snapshot}`,
     messages: await convertToModelMessages(contextMessages),
-    tools: createInventoryTools(inventoryRepo),
-    stopWhen: isStepCount(5),
+    tools: createAgentTools({
+      inventory: inventoryRepo,
+      schedule: scheduleRepo,
+      recipes: recipeRepo,
+      foodBank: foodBankRepo,
+    }),
+    // Multi-step allows "plan my week": query, then batch-assign across slots,
+    // then confirm. Generous so a full current+next-week plan isn't truncated.
+    stopWhen: isStepCount(10),
   })
 
   return createUIMessageStreamResponse({

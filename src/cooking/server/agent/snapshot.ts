@@ -61,7 +61,10 @@ function slotSummary(slot: Week['days'][number]['lunch']): string {
   return assignmentLabel(slot.assignment)
 }
 
-function assignmentLabel(a: NonNullable<Week['days'][number]['lunch']['assignment']>): string {
+/** A short label for a slot's assignment (shared by the snapshot + query tools). */
+export function assignmentLabel(
+  a: NonNullable<Week['days'][number]['lunch']['assignment']>,
+): string {
   switch (a.type) {
     case 'recipe':
       return a.recipeName ?? 'Recipe'
