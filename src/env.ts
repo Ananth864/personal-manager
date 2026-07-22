@@ -6,6 +6,10 @@ export const env = createEnv({
     SERVER_URL: z.string().url().optional(),
     // Clerk secret key — read server-side by clerkMiddleware. Required for auth().
     CLERK_SECRET_KEY: z.string().min(1),
+    // OpenAI — server-only (no VITE_ prefix). The agent route handler reads it.
+    OPENAI_API_KEY: z.string().min(1),
+    // Model is a config swap (ADR-0007); defaults to the spec'd model if unset.
+    OPENAI_MODEL: z.string().min(1).optional(),
   },
 
   clientPrefix: 'VITE_',

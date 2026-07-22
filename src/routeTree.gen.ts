@@ -16,6 +16,7 @@ import { Route as AuthedChatRouteImport } from './routes/_authed/chat'
 import { Route as AuthedInventoryRouteImport } from './routes/_authed/inventory'
 import { Route as AuthedRecipesRouteImport } from './routes/_authed/recipes'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
+import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +53,11 @@ const AuthedScheduleRoute = AuthedScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
   path: '/api/trpc/$',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/inventory': typeof AuthedInventoryRoute
   '/recipes': typeof AuthedRecipesRoute
   '/schedule': typeof AuthedScheduleRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/inventory': typeof AuthedInventoryRoute
   '/recipes': typeof AuthedRecipesRoute
   '/schedule': typeof AuthedScheduleRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesById {
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/_authed/inventory': typeof AuthedInventoryRoute
   '/_authed/recipes': typeof AuthedRecipesRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRouteTypes {
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/recipes'
     | '/schedule'
+    | '/api/chat'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/recipes'
     | '/schedule'
+    | '/api/chat'
     | '/api/trpc/$'
   id:
     | '__root__'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory'
     | '/_authed/recipes'
     | '/_authed/schedule'
+    | '/api/chat'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
 }
@@ -122,6 +134,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   SignInRoute: typeof SignInRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
 
@@ -176,6 +189,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -207,6 +227,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   SignInRoute: SignInRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }
 export const routeTree = rootRouteImport

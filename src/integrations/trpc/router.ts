@@ -32,6 +32,7 @@ import { discardPortions } from '#/cooking/server/food-bank/service'
 import { SupabaseIngredientLedgerRepo } from '#/cooking/server/inventory/ledger-supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import { buildShoppingList } from '#/cooking/server/shopping-list/shopping-list'
+import { SupabaseChatMessageRepo } from '#/cooking/server/agent/chat-repo'
 import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 import type { Context } from './init'
 
@@ -355,6 +356,29 @@ export const trpcRouter = createTRPCRouter({
       const weekStart = mondayOfWeek(todayISO())
       return buildShoppingList(plannedCooks, recipes, inventory, todayISO(), addDays(weekStart, 14))
     }),
+  }),
+
+  chat: createTRPCRouter({
+    // Full scrollback for the chat UI (RLS-scoped per user).
+    list: protectedProcedure.query(({ ctx }) =>
+      new SupabaseChatMessageRepo(ctx.token).loadAll(),
+    ),
+    // Persist one UI message after a turn (upsert by id).
+    save: protectedProcedure
+      .input(
+        z.object({
+          id: z.string().min(1),
+          role: z.enum(['user', 'assistant']),
+          parts: z.array(z.any()),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        new SupabaseChatMessageRepo(ctx.token).save({
+          id: input.id,
+          role: input.role,
+          parts: input.parts as never,
+        }),
+      ),
   }),
 })
 export type TRPCRouter = typeof trpcRouter
