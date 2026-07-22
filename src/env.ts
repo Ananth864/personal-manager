@@ -6,10 +6,10 @@ export const env = createEnv({
     SERVER_URL: z.string().url().optional(),
     // Clerk secret key — read server-side by clerkMiddleware. Required for auth().
     CLERK_SECRET_KEY: z.string().min(1),
-    // OpenAI — server-only (no VITE_ prefix). The agent route handler reads it.
-    OPENAI_API_KEY: z.string().min(1),
+    // xAI — server-only (no VITE_ prefix). The agent route handler reads it.
+    XAI_API_KEY: z.string().min(1),
     // Model is a config swap (ADR-0007); defaults to the spec'd model if unset.
-    OPENAI_MODEL: z.string().min(1).optional(),
+    XAI_MODEL: z.string().min(1).optional(),
   },
 
   clientPrefix: 'VITE_',
@@ -22,7 +22,13 @@ export const env = createEnv({
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
   },
 
-  runtimeEnv: import.meta.env,
+  // Server-only vars (CLERK_SECRET_KEY, OPENAI_API_KEY, ...) are loaded into
+  // process.env by vite.config.ts (Vite only surfaces VITE_-prefixed vars via
+  // import.meta.env). Merge both so t3-env sees every key on the server.
+  runtimeEnv: {
+    ...process.env,
+    ...import.meta.env,
+  },
 
   emptyStringAsUndefined: true,
 })

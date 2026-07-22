@@ -131,7 +131,7 @@ export function createAgentTools(deps: AgentToolDeps) {
     // ── Schedule ───────────────────────────────────────────────────────────
     assign_slot: {
       description:
-        'Assign a Meal Slot (a date + lunch/dinner) one of four ways: a catalog recipe, an ad-hoc recipe, a Food Bank portion withdrawal, or No Cook. Past weeks are read-only. For "plan my week", call this for each slot you want to fill.',
+        'Assign a Meal Slot (a date + lunch/dinner) one of four ways: a catalog recipe, an ad-hoc recipe, a Food Bank portion withdrawal, or No Cook. Past weeks are read-only. For "plan my week", call this for each slot you want to fill. Ingredient availability does not limit assignment.',
       inputSchema: z.discriminatedUnion('type', [
         z.object({
           type: z.literal('recipe'),

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '@clerk/tanstack-react-start/server'
-import { createOpenAI } from '@ai-sdk/openai'
+import { createXai } from '@ai-sdk/xai'
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -22,14 +22,16 @@ import { createAgentTools } from '#/cooking/server/agent/tools'
 import { SupabaseChatMessageRepo } from '#/cooking/server/agent/chat-repo'
 import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 
-const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY })
-const MODEL = env.OPENAI_MODEL ?? 'gpt-5.6-luna'
+const xai = createXai({ apiKey: env.XAI_API_KEY })
+const MODEL = env.XAI_MODEL ?? 'grok-4.5'
 
 const AGENT_INSTRUCTIONS = `You are the cooking assistant for a personal meal-management app. You help the user plan weekly meals, track their ingredient inventory, and report purchases or usage.
 
-You are reactive and instruction-driven: act only when the user addresses you, and write data only on instruction (never proactively). You report real-world state the user tells you (e.g. "I bought 6 eggs", "we finished the milk") — you do not invent inventory changes.
+You are reactive and instruction-driven: act only when the user addresses you, and write data only on instruction (never proactively). You report real-world state the user tells you (e.g. "I bought 6 eggs", "we finished the milk") — you do not invent inventory changes. If instructions are unclear, clarify with the user before proceeding
 
 You can query and update Inventory via tools. You cannot cook meals, edit recipes, or access the database directly — if asked, explain the limit and suggest the user do it from the UI.
+
+When planning meals, assign based on the user's preferences (if stated). Current inventory does not constrain planning — ingredient gaps surface in the Shopping List. Use No Cook only when the user explicitly won't cook. Propose the plan before implementing it — show the proposed assignments and wait for confirmation before calling assign_slot.
 
 Below is the user's current state (fresh this turn). Use it to answer naturally, and call tools to make the changes the user requests, then confirm in a sentence.`
 
@@ -71,7 +73,7 @@ async function handler({ request }: { request: Request }) {
     newUserMessage.role === 'user' ? [...history, newUserMessage] : history
 
   const result = streamText({
-    model: openai(MODEL),
+    model: xai(MODEL),
     instructions: `${AGENT_INSTRUCTIONS}\n\n${snapshot}`,
     messages: await convertToModelMessages(contextMessages),
     tools: createAgentTools({
@@ -80,6 +82,11 @@ async function handler({ request }: { request: Request }) {
       recipes: recipeRepo,
       foodBank: foodBankRepo,
     }),
+    // Low reasoning keeps the agent fast and cheap — meal planning and
+    // inventory updates don't need deep deliberation.
+    providerOptions: {
+      xai: { reasoningEffort: 'low' },
+    },
     // Multi-step allows "plan my week": query, then batch-assign across the
     // current + next week (up to 28 slots), then confirm. The model makes many
     // tool calls per step, but a generous cap keeps a full plan from truncating.
