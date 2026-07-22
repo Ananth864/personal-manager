@@ -18,13 +18,11 @@ import { SupabaseRecipeRepo } from '#/cooking/server/recipes/supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import { listInventory } from '#/cooking/server/inventory/service'
 import { buildWeek } from '#/cooking/server/schedule/service'
-import {
-  buildFoodBankSummary,
-  computePlannedProductions,
-} from '#/cooking/server/food-bank/availability'
+import { foodBankSummaryFor } from '#/cooking/server/food-bank/service'
 import { buildStateSnapshot } from '#/cooking/server/agent/snapshot'
 import { createInventoryTools } from '#/cooking/server/agent/tools'
-import { addDays, mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
+import { SupabaseChatMessageRepo } from '#/cooking/server/agent/chat-repo'
+import { mondayOfWeek, todayISO } from '#/cooking/schedule/date-utils'
 
 const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY })
 const MODEL = env.OPENAI_MODEL ?? 'gpt-5.6-luna'
@@ -50,47 +48,37 @@ async function handler({ request }: { request: Request }) {
   }
 
   const body = await request.json()
-  const parsed = z
-    .object({ messages: z.array(z.any()) })
-    .parse(body)
+  const parsed = z.object({ messages: z.array(z.any()) }).parse(body)
   const messages = parsed.messages as UIMessage[]
 
-  // Fresh per-turn state snapshot (ADR-0007): current week + inventory + food bank.
   const inventoryRepo = new SupabaseInventoryRepo(token)
   const scheduleRepo = new SupabaseScheduleRepo(token)
   const recipeRepo = new SupabaseRecipeRepo(token)
   const foodBankRepo = new SupabaseFoodBankRepo(token)
 
+  // Fresh per-turn state snapshot (ADR-0007): current week + inventory + food bank.
+  // The food-bank summary shares its loader with the tRPC procedure (one source).
   const weekStart = mondayOfWeek(todayISO())
-  const [slots, recipes, inventory, produced, foodBankSlots, plannedCooks] = await Promise.all([
+  const [slots, recipes, inventory, foodBank, history] = await Promise.all([
     scheduleRepo.listSlots(weekStart),
     recipeRepo.list(),
     listInventory(inventoryRepo),
-    foodBankRepo.listProduced(),
-    scheduleRepo.listFoodBankSlots(),
-    scheduleRepo.listPlannedCooks(),
+    foodBankSummaryFor(foodBankRepo, scheduleRepo, recipeRepo),
+    // History is authoritative from the table (ADR-0007); the new user message
+    // is taken from the client payload (not yet persisted).
+    new SupabaseChatMessageRepo(token).loadRecent(HISTORY_TURNS * 2),
   ])
   const week = buildWeek(weekStart, slots, recipes, inventory)
-  const servingsById = new Map(recipes.map((r) => [r.id, r.servings]))
-  const planned = computePlannedProductions(
-    plannedCooks,
-    (id) => servingsById.get(id),
-    weekStart,
-    addDays(weekStart, 14),
-  )
-  const nameById = new Map(recipes.map((r) => [r.id, r.name]))
-  const foodBank = buildFoodBankSummary(produced, planned, foodBankSlots, (id) =>
-    id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
-  )
   const snapshot = buildStateSnapshot(week, inventory, foodBank)
 
-  // Keep only the last ~5 turns of the client's messages for model context.
-  const recent = messages.slice(-HISTORY_TURNS * 2)
+  const newUserMessage = messages[messages.length - 1]
+  const contextMessages =
+    newUserMessage.role === 'user' ? [...history, newUserMessage] : history
 
   const result = streamText({
     model: openai(MODEL),
     instructions: `${AGENT_INSTRUCTIONS}\n\n${snapshot}`,
-    messages: await convertToModelMessages(recent),
+    messages: await convertToModelMessages(contextMessages),
     tools: createInventoryTools(inventoryRepo),
     stopWhen: isStepCount(5),
   })

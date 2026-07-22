@@ -1,13 +1,52 @@
 import type { FoodBankRepo } from './repo'
 import type { ScheduleRepo } from '../schedule/repo'
+import type { RecipeRepo } from '../recipes/repo'
+import {
+  buildFoodBankSummary,
+  computePlannedProductions
+  
+} from './availability'
+import type {FoodBankEntry} from './availability';
+import { addDays, mondayOfWeek, todayISO } from '../../schedule/date-utils'
 
 /**
  * Food Bank service operations (CONTEXT.md → Food Bank; ADR-0002 / ADR-0006).
  *
  * Availability is derived elsewhere (availability.ts); this module holds the
- * mutations that aren't Cook or Schedule reservations — currently Discard, the
- * direct reduction of produced portions without assigning a meal slot.
+ * mutations and the shared derivation orchestration that the tRPC
+ * `foodBank.summary` procedure and the agent's per-turn snapshot both use (so
+ * the Food Bank summary logic has one home, not two).
  */
+
+/**
+ * Derive the per-recipe Food Bank summary from the live repos. Shared by the
+ * `foodBank.summary` tRPC procedure and the agent's state snapshot so the
+ * produced/planned/reserved/discardable terms can't drift between them.
+ */
+export async function foodBankSummaryFor(
+  foodBank: FoodBankRepo,
+  schedule: ScheduleRepo,
+  recipes: RecipeRepo,
+): Promise<FoodBankEntry[]> {
+  const [produced, reservations, plannedCooks, allRecipes] = await Promise.all([
+    foodBank.listProduced(),
+    schedule.listFoodBankSlots(),
+    schedule.listPlannedCooks(),
+    recipes.list(),
+  ])
+  const servingsById = new Map(allRecipes.map((r) => [r.id, r.servings]))
+  const weekStart = mondayOfWeek(todayISO())
+  const planned = computePlannedProductions(
+    plannedCooks,
+    (id) => servingsById.get(id),
+    weekStart,
+    addDays(weekStart, 14),
+  )
+  const nameById = new Map(allRecipes.map((r) => [r.id, r.name]))
+  return buildFoodBankSummary(produced, planned, reservations, (id) =>
+    id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
+  )
+}
 
 /**
  * How many produced portions of `recipeId` (null = the ad-hoc pool) can be

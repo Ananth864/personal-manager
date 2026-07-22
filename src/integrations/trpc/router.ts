@@ -27,8 +27,7 @@ import {
   markNoCook,
 } from '#/cooking/server/schedule/service'
 import { buildCookPreview, cook, uncook } from '#/cooking/server/schedule/cook'
-import { buildFoodBankSummary, computePlannedProductions } from '#/cooking/server/food-bank/availability'
-import { discardPortions } from '#/cooking/server/food-bank/service'
+import { foodBankSummaryFor, discardPortions } from '#/cooking/server/food-bank/service'
 import { SupabaseIngredientLedgerRepo } from '#/cooking/server/inventory/ledger-supabase-repo'
 import { SupabaseFoodBankRepo } from '#/cooking/server/food-bank/supabase-repo'
 import { buildShoppingList } from '#/cooking/server/shopping-list/shopping-list'
@@ -312,26 +311,13 @@ export const trpcRouter = createTRPCRouter({
   }),
 
   foodBank: createTRPCRouter({
-    summary: protectedProcedure.query(async ({ ctx }) => {
-      const [produced, reservations, plannedCooks, recipes] = await Promise.all([
-        foodBankRepoFor(ctx).listProduced(),
-        scheduleRepoFor(ctx).listFoodBankSlots(),
-        scheduleRepoFor(ctx).listPlannedCooks(),
-        recipeRepoFor(ctx).list(),
-      ])
-      const servingsById = new Map(recipes.map((r) => [r.id, r.servings]))
-      const weekStart = mondayOfWeek(todayISO())
-      const planned = computePlannedProductions(
-        plannedCooks,
-        (id) => servingsById.get(id),
-        weekStart,
-        addDays(weekStart, 14),
-      )
-      const nameById = new Map(recipes.map((r) => [r.id, r.name]))
-      return buildFoodBankSummary(produced, planned, reservations, (id) =>
-        id ? nameById.get(id) ?? 'Recipe' : 'Ad-hoc',
-      )
-    }),
+    summary: protectedProcedure.query(({ ctx }) =>
+      foodBankSummaryFor(
+        foodBankRepoFor(ctx),
+        scheduleRepoFor(ctx),
+        recipeRepoFor(ctx),
+      ),
+    ),
     discard: protectedProcedure
       .input(z.object({ recipeId: z.string().nullable(), count: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => {

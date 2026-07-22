@@ -37,6 +37,26 @@ export class SupabaseChatMessageRepo {
     }))
   }
 
+  /** The most recent `limit` messages, in chronological order (oldest first). */
+  async loadRecent(limit: number): Promise<UIMessage[]> {
+    const { data, error } = await this.client
+      .from('cooking_chat_messages')
+      .select('id, role, parts, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) {
+      throw new Error(`Failed to load chat history: ${error.message}`)
+    }
+    return (data as RawRow[])
+      .slice()
+      .reverse()
+      .map((r) => ({
+        id: r.id,
+        role: r.role,
+        parts: r.parts as UIMessage['parts'],
+      }))
+  }
+
   async save(message: UIMessage): Promise<void> {
     const { error } = await this.client.from('cooking_chat_messages').upsert(
       {

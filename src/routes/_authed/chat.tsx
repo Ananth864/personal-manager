@@ -47,24 +47,23 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
     onError: (e) => console.error('chat error', e),
   })
 
-  // Persist new messages once a turn finishes (status -> 'ready').
+  // Persist messages: user messages are saved as soon as they appear (so they
+  // survive an errored turn), assistant messages only once the turn finalizes
+  // (status 'ready') so a half-streamed message is never stored.
   const savedIds = useRef(new Set(initialMessages.map((m) => m.id)))
-  const prevStatus = useRef(status)
   const saveMut = useMutation(
     trpc.chat.save.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.chat.list.queryKey() }),
     }),
   )
   useEffect(() => {
-    if (prevStatus.current !== 'ready' && status === 'ready') {
-      for (const m of messages) {
-        if (m.role !== 'user' && m.role !== 'assistant') continue
-        if (savedIds.current.has(m.id)) continue
+    for (const m of messages) {
+      if (savedIds.current.has(m.id)) continue
+      if (m.role === 'user' || (m.role === 'assistant' && status === 'ready')) {
         savedIds.current.add(m.id)
         saveMut.mutate({ id: m.id, role: m.role, parts: m.parts as never })
       }
     }
-    prevStatus.current = status
   }, [status, messages, saveMut])
 
   // Auto-scroll to the latest message as it streams.

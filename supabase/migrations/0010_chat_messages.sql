@@ -1,8 +1,8 @@
 -- 0010_chat_messages.sql
 -- The cooking agent's conversation log (T08; ADR-0007). Each row is one UI
 -- message (user or assistant), stored as the AI SDK's UIMessage `parts` JSONB.
--- RLS-scoped per user; the agent route handler loads the last ~5 turns for model
--- context and the chat UI loads the full scrollback on mount.
+-- RLS-scoped per user; the chat UI loads the full scrollback on mount and the
+-- agent route handler loads the last ~5 turns for model context.
 
 create table if not exists cooking_chat_messages (
   -- The AI SDK UIMessage id (client/SDK-generated string), used as the PK so
