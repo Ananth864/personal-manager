@@ -153,4 +153,14 @@ export class SupabaseInventoryRepo implements InventoryRepo {
     }
     return item
   }
+
+  async delete(ingredientId: string): Promise<void> {
+    const { error } = await this.client
+      .from('cooking_ingredients')
+      .delete()
+      .eq('id', ingredientId)
+    if (error) {
+      throw new Error(`Failed to delete ingredient: ${error.message}`)
+    }
+  }
 }

@@ -17,6 +17,7 @@ export interface InventoryRepo {
     quantity: number | null
   }) => Promise<InventoryItem>
   save: (item: InventoryItem) => Promise<InventoryItem>
+  delete: (ingredientId: string) => Promise<void>
 }
 
 /** In-memory implementation used by the service-layer tests. */
@@ -64,6 +65,10 @@ export class InMemoryInventoryRepo implements InventoryRepo {
   async save(item: InventoryItem): Promise<InventoryItem> {
     this.items.set(item.ingredient.id, clone(item))
     return clone(item)
+  }
+
+  async delete(ingredientId: string): Promise<void> {
+    this.items.delete(ingredientId)
   }
 }
 

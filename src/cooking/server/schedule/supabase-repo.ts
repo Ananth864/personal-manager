@@ -47,6 +47,11 @@ function rowFromInput(input: UpsertSlotInput) {
     adhoc_name: input.adhocName ?? null,
     adhoc_ingredients: input.adhocIngredients ?? null,
     adhoc_servings: input.adhocServings ?? null,
+    // Reassigning a slot always resets the cooked state — the new assignment
+    // hasn't been cooked yet. Without this, a cooked slot stays cooked after
+    // changing its recipe, making it impossible to update or cook again.
+    cooked: false,
+    banked_portions: null,
   }
 }
 

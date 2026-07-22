@@ -4,7 +4,7 @@ import { DefaultChatTransport  } from 'ai'
 import type {UIMessage} from 'ai';
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Send } from 'lucide-react'
+import { Send, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { useTRPC } from '#/integrations/trpc/react'
@@ -36,12 +36,13 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
   const trpc = useTRPC()
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   const transport = useRef(
     new DefaultChatTransport({ api: '/api/chat' }),
   ).current
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, status, error, setMessages } = useChat({
     messages: initialMessages,
     transport,
     onError: (e) => console.error('chat error', e),
@@ -54,6 +55,16 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
   const saveMut = useMutation(
     trpc.chat.save.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.chat.list.queryKey() }),
+    }),
+  )
+  const clearMut = useMutation(
+    trpc.chat.clear.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.chat.list.queryKey() })
+        setMessages([])
+        savedIds.current.clear()
+        setConfirmingClear(false)
+      },
     }),
   )
   useEffect(() => {
@@ -76,11 +87,45 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-2xl flex-col">
-      <header className="pb-3">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Chat</h1>
-        <p className="text-sm text-muted-foreground">
-          Tell the agent what you bought, finished, or want to plan.
-        </p>
+      <header className="flex items-start justify-between gap-3 pb-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Chat</h1>
+          <p className="text-sm text-muted-foreground">
+            Tell the agent what you bought, finished, or want to plan.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          confirmingClear ? (
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={clearMut.isPending}
+                onClick={() => clearMut.mutate()}
+              >
+                {clearMut.isPending ? 'Clearing…' : 'Confirm'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={clearMut.isPending}
+                onClick={() => setConfirmingClear(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmingClear(true)}
+              disabled={busy}
+              className="shrink-0 text-muted-foreground"
+            >
+              <Trash2 className="h-4 w-4" /> Clear
+            </Button>
+          )
+        )}
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto pb-4">

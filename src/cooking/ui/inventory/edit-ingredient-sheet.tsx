@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -28,6 +29,7 @@ export function EditIngredientSheet({
   const queryClient = useQueryClient()
   const [restockQty, setRestockQty] = useState('')
   const [setQty, setSetQty] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const open = item !== null
 
@@ -40,6 +42,15 @@ export function EditIngredientSheet({
   )
   const setStateMutation = useMutation(
     trpc.inventory.setState.mutationOptions({ onSuccess: invalidate }),
+  )
+  const deleteMutation = useMutation(
+    trpc.inventory.delete.mutationOptions({
+      onSuccess: () => {
+        invalidate()
+        setConfirmingDelete(false)
+        onOpenChange(false)
+      },
+    }),
   )
 
   function changeState(state: InventoryState, quantity?: number) {
@@ -74,9 +85,9 @@ export function EditIngredientSheet({
   }
 
   const pending =
-    restockMutation.isPending || setStateMutation.isPending
+    restockMutation.isPending || setStateMutation.isPending || deleteMutation.isPending
   const errorMessage =
-    restockMutation.error?.message ?? setStateMutation.error?.message
+    restockMutation.error?.message ?? setStateMutation.error?.message ?? deleteMutation.error?.message
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -171,7 +182,35 @@ export function EditIngredientSheet({
               )}
             </div>
 
-            <SheetFooter className="sm:flex-col">
+            <SheetFooter className="sm:flex-col gap-2">
+              {confirmingDelete ? (
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={pending}
+                    onClick={() => deleteMutation.mutate({ ingredientId: item.ingredient.id })}
+                  >
+                    {pending ? 'Deleting…' : 'Confirm delete'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={pending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => setConfirmingDelete(true)}
+                  disabled={pending}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete ingredient
+                </Button>
+              )}
               <SheetClose asChild>
                 <Button type="button" variant="ghost">
                   Done

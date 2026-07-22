@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, Plus, RotateCcw, Utensils } from 'lucide-react'
+import { Check, ChevronLeft, Plus, RotateCcw, Search, Utensils } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -414,6 +414,12 @@ function RecipePicker({
   pending: boolean
   onPick: (id: string) => void
 }) {
+  const [search, setSearch] = useState('')
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return q ? recipes.filter((r) => r.name.toLowerCase().includes(q)) : recipes
+  }, [recipes, search])
+
   if (recipes.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
@@ -422,21 +428,38 @@ function RecipePicker({
     )
   }
   return (
-    <ul className="flex flex-1 flex-col gap-2 overflow-y-auto">
-      {recipes.map((r) => (
-        <li key={r.id}>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => onPick(r.id)}
-            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            <span className="text-sm font-medium">{r.name}</span>
-            <RecipeBadge availability={r.availability} className="shrink-0" />
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-1 flex-col gap-3">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search recipes"
+          className="pl-9"
+        />
+      </div>
+      {filtered.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No recipes match "{search}".
+        </p>
+      ) : (
+        <ul className="flex flex-1 flex-col gap-2 overflow-y-auto">
+          {filtered.map((r) => (
+            <li key={r.id}>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => onPick(r.id)}
+                className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                <span className="text-sm font-medium">{r.name}</span>
+                <RecipeBadge availability={r.availability} className="shrink-0" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

@@ -115,6 +115,10 @@ export const trpcRouter = createTRPCRouter({
           quantity: input.quantity,
         }),
       ),
+
+    delete: protectedProcedure
+      .input(z.object({ ingredientId: z.string() }))
+      .mutation(({ ctx, input }) => repoFor(ctx).delete(input.ingredientId)),
   }),
 
   recipes: createTRPCRouter({
@@ -365,6 +369,10 @@ export const trpcRouter = createTRPCRouter({
           parts: input.parts as never,
         }),
       ),
+
+    clear: protectedProcedure.mutation(({ ctx }) =>
+      new SupabaseChatMessageRepo(ctx.token).clearAll(),
+    ),
   }),
 })
 export type TRPCRouter = typeof trpcRouter

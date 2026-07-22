@@ -70,4 +70,14 @@ export class SupabaseChatMessageRepo {
       throw new Error(`Failed to save chat message: ${error.message}`)
     }
   }
+
+  async clearAll(): Promise<void> {
+    const { error } = await this.client
+      .from('cooking_chat_messages')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+    if (error) {
+      throw new Error(`Failed to clear chat history: ${error.message}`)
+    }
+  }
 }
