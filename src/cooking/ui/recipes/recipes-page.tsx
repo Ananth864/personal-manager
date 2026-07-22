@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { useTRPC } from '#/integrations/trpc/react'
@@ -12,12 +12,23 @@ import type { RecipeWithAvailability } from '#/cooking/server/recipes/types'
 
 export function RecipesPage() {
   const trpc = useTRPC()
+  const queryClient = useQueryClient()
   const listQuery = useQuery(trpc.recipes.list.queryOptions())
 
   const [search, setSearch] = useState('')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<RecipeWithAvailability | null>(null)
   const [viewing, setViewing] = useState<RecipeWithAvailability | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const deleteMut = useMutation(
+    trpc.recipes.delete.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.recipes.list.queryKey() })
+        setDeletingId(null)
+      },
+    }),
+  )
 
   const filtered = useMemo(() => {
     const recipes = listQuery.data ?? []
@@ -84,24 +95,57 @@ export function RecipesPage() {
       ) : (
         <ul className="space-y-2">
           {filtered.map((recipe) => (
-            <li key={recipe.id}>
-              <button
-                type="button"
-                onClick={() => setViewing(recipe)}
-                className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">
-                    {recipe.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {recipe.servings} serving{recipe.servings === 1 ? '' : 's'} ·{' '}
-                    {recipe.ingredients.length} ingredient
-                    {recipe.ingredients.length === 1 ? '' : 's'}
-                  </div>
+            <li key={recipe.id} className="rounded-lg border border-border bg-card">
+              {deletingId === recipe.id ? (
+                <div className="flex items-center gap-2 px-4 py-3">
+                  <span className="flex-1 text-sm font-medium">Delete "{recipe.name}"?</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={deleteMut.isPending}
+                    onClick={() => deleteMut.mutate({ id: recipe.id })}
+                  >
+                    {deleteMut.isPending ? '…' : 'Delete'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={deleteMut.isPending}
+                    onClick={() => setDeletingId(null)}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-                <RecipeBadge availability={recipe.availability} className="shrink-0" />
-              </button>
+              ) : (
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setViewing(recipe)}
+                    className="flex flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-accent"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">
+                        {recipe.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {recipe.servings} serving{recipe.servings === 1 ? '' : 's'} ·{' '}
+                        {recipe.ingredients.length} ingredient
+                        {recipe.ingredients.length === 1 ? '' : 's'}
+                      </div>
+                    </div>
+                    <RecipeBadge availability={recipe.availability} className="shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingId(recipe.id)}
+                    disabled={deleteMut.isPending}
+                    className="shrink-0 px-3 py-3 text-muted-foreground transition-colors hover:text-destructive"
+                    aria-label={`Delete ${recipe.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

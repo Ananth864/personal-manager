@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { useTRPC } from '#/integrations/trpc/react'
@@ -20,11 +20,22 @@ const SECTION_LABEL: Record<InventoryState, string> = {
 
 export function InventoryPage() {
   const trpc = useTRPC()
+  const queryClient = useQueryClient()
   const listQuery = useQuery(trpc.inventory.list.queryOptions())
 
   const [search, setSearch] = useState('')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const deleteMut = useMutation(
+    trpc.inventory.delete.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
+        setDeletingId(null)
+      },
+    }),
+  )
 
   const sections = useMemo(() => {
     const items = listQuery.data ?? []
@@ -111,17 +122,50 @@ export function InventoryPage() {
               <ul className="divide-y divide-border rounded-lg border border-border bg-card">
                 {items.map((item) => (
                   <li key={item.ingredient.id}>
-                    <button
-                      type="button"
-                      onClick={() => setEditing(item)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent"
-                    >
-                      <StateMarker state={item.state} />
-                      <span className="flex-1 truncate text-sm font-medium">
-                        {item.ingredient.name}
-                      </span>
-                      <Quantity item={item} />
-                    </button>
+                    {deletingId === item.ingredient.id ? (
+                      <div className="flex items-center gap-2 px-4 py-3">
+                        <span className="flex-1 text-sm font-medium">Delete "{item.ingredient.name}"?</span>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={deleteMut.isPending}
+                          onClick={() => deleteMut.mutate({ ingredientId: item.ingredient.id })}
+                        >
+                          {deleteMut.isPending ? '…' : 'Delete'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={deleteMut.isPending}
+                          onClick={() => setDeletingId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(item)}
+                          className="flex flex-1 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent"
+                        >
+                          <StateMarker state={item.state} />
+                          <span className="flex-1 truncate text-sm font-medium">
+                            {item.ingredient.name}
+                          </span>
+                          <Quantity item={item} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(item.ingredient.id)}
+                          disabled={deleteMut.isPending}
+                          className="shrink-0 px-3 py-3 text-muted-foreground transition-colors hover:text-destructive"
+                          aria-label={`Delete ${item.ingredient.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
