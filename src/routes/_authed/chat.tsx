@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Send, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
 import { useTRPC } from '#/integrations/trpc/react'
 import { LoadingState, ErrorState } from '#/cooking/ui/shared-states'
 
@@ -147,7 +146,7 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
       </div>
 
       <form
-        className="flex items-center gap-2 border-t border-border pt-3"
+        className="flex items-end gap-2 border-t border-border pt-3"
         onSubmit={(e) => {
           e.preventDefault()
           const text = input.trim()
@@ -156,13 +155,24 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
           setInput('')
         }}
       >
-        <Input
+        <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              const text = input.trim()
+              if (!text || busy) return
+              sendMessage({ text })
+              setInput('')
+            }
+          }}
           placeholder={busy ? 'Working…' : 'Message the cooking agent…'}
           disabled={busy}
+          rows={1}
+          className="max-h-32 w-full min-w-0 resize-none rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
         />
-        <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send">
+        <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send" className="shrink-0">
           <Send className="h-4 w-4" />
         </Button>
       </form>
