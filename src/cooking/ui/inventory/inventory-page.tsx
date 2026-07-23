@@ -34,8 +34,12 @@ export function InventoryPage() {
         queryClient.invalidateQueries({ queryKey: trpc.inventory.list.queryKey() })
         setDeletingId(null)
       },
+      onError: () => {
+        setDeletingId(null)
+      },
     }),
   )
+  const deleteError = deleteMut.error?.message
 
   const sections = useMemo(() => {
     const items = listQuery.data ?? []
@@ -123,24 +127,29 @@ export function InventoryPage() {
                 {items.map((item) => (
                   <li key={item.ingredient.id}>
                     {deletingId === item.ingredient.id ? (
-                      <div className="flex items-center gap-2 px-4 py-3">
-                        <span className="flex-1 text-sm font-medium">Delete "{item.ingredient.name}"?</span>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={deleteMut.isPending}
-                          onClick={() => deleteMut.mutate({ ingredientId: item.ingredient.id })}
-                        >
-                          {deleteMut.isPending ? '…' : 'Delete'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={deleteMut.isPending}
-                          onClick={() => setDeletingId(null)}
-                        >
-                          Cancel
-                        </Button>
+                      <div className="space-y-2 px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 text-sm font-medium">Delete "{item.ingredient.name}"?</span>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={deleteMut.isPending}
+                            onClick={() => deleteMut.mutate({ ingredientId: item.ingredient.id })}
+                          >
+                            {deleteMut.isPending ? '…' : 'Delete'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={deleteMut.isPending}
+                            onClick={() => { setDeletingId(null); deleteMut.reset() }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        {deleteError && (
+                          <p className="text-xs text-destructive">{deleteError}</p>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center">
