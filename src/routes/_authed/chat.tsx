@@ -157,6 +157,12 @@ function ChatThread({ initialMessages }: { initialMessages: UIMessage[] }) {
       >
         <textarea
           value={input}
+          ref={(el) => {
+            if (el) {
+              el.style.height = 'auto'
+              el.style.height = `${Math.min(el.scrollHeight, 128)}px`
+            }
+          }}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
