@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   ShoppingCart,
   MessageCircle,
+  ChevronDown,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -81,12 +82,18 @@ function HeroPage() {
             </p>
           </div>
 
-          <Link
-            to="/sign-in"
-            className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-8 text-[15px] font-medium text-primary-foreground transition-opacity hover:opacity-90 active:opacity-80"
-          >
-            Start cooking
-          </Link>
+          <div className="flex flex-col items-center gap-3">
+            <Link
+              to="/sign-in"
+              className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-8 text-[15px] font-medium text-primary-foreground transition-opacity hover:opacity-90 active:opacity-80"
+            >
+              Start cooking
+            </Link>
+            <div className="flex flex-col items-center gap-0.5 pt-4 text-muted-foreground/50">
+              <span className="text-[10px] uppercase tracking-[0.2em]">Scroll</span>
+              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden />
+            </div>
+          </div>
         </section>
 
         {/* How it works */}
